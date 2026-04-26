@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "alloy",
  "blake3",
@@ -2021,6 +2021,18 @@ version = "4.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ca9601fb2d62598ee17836250842873a413586e5d7ed88b356e38ddbb0ec631"
 dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "enum_dispatch"
+version = "0.3.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa18ce2bc66555b3218614519ac839ddb759a7d6720732f979ef8d13be147ecd"
+dependencies = [
+ "once_cell",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4241,14 +4253,15 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eefc3539465111e2769b9b8334ddd4d7071e12c183de4a9fee7d9bfbdb3da23"
+checksum = "0ed544b4fb88a5615649893ee2d1394e0f48633f63dc72700e51f6b133fdfc1c"
 dependencies = [
  "anyhow",
  "async-trait",
  "blake3",
  "bytes",
+ "dashmap",
  "dirs 6.0.0",
  "futures",
  "hex",
@@ -4355,9 +4368,9 @@ dependencies = [
 
 [[package]]
 name = "saorsa-transport"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "250826f52ac60992947359218d83c21f658aa85407e3980a5dbb258eff4c0cc3"
+checksum = "9df373519d88540825f435bf3c5c6e300377871b28f16cdd461db3c3f4bb5323"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4369,6 +4382,7 @@ dependencies = [
  "core-foundation 0.9.4",
  "dashmap",
  "dirs 5.0.1",
+ "enum_dispatch",
  "futures-util",
  "hex",
  "igd-next",
