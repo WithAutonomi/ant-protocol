@@ -1,6 +1,6 @@
 [package]
 name = "ant-protocol"
-version = "2.0.1"
+version = "2.0.2-rc.1"
 edition = "2021"
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Wire protocol for the Autonomi decentralized network (WithAutonomi fork)"
@@ -21,7 +21,7 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-saorsa-core = "0.24.0"
+saorsa-core = { git = "https://github.com/saorsa-labs/saorsa-core", branch = "rc-2026.4.3" }
 saorsa-pqc = "0.5"
 evmlib = "0.8"
 
