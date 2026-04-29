@@ -21,7 +21,7 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-saorsa-core = "0.24.0"
+saorsa-core = { git = "https://github.com/saorsa-labs/saorsa-core.git", branch = "mick/remove-bootstrap-cache" }
 saorsa-pqc = "0.5"
 evmlib = "0.8"
 
