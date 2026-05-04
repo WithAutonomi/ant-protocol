@@ -1,6 +1,6 @@
 [package]
 name = "ant-protocol"
-version = "2.0.3-rc.1"
+version = "2.0.3-rc.2"
 edition = "2021"
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Wire protocol for the Autonomi decentralized network (WithAutonomi fork)"
