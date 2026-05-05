@@ -13,6 +13,10 @@ use tokio::time::Instant;
 
 /// Send a chunk-protocol message to `target_peer` and await a matching response.
 ///
+/// QUIC request sends wait for the peer to acknowledge receipt of the full
+/// request stream before starting the response timeout. This keeps response
+/// deadlines from expiring while the request body is still in transit.
+///
 /// The event loop filters by topic (`CHUNK_PROTOCOL_ID`), source peer, decode
 /// errors (warn + skip), and `request_id` mismatch (skip).
 ///
