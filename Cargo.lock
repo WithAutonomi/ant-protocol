@@ -221,9 +221,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eip7928"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72bc95fd73591644f0022065bef3c027d1a5ed875a53cb19a898d71a00818c1d"
+checksum = "6b827a6d7784fe3eb3489d40699407a4cdcce74271421a01bdffe60cf573bb16"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.0.3"
+version = "2.1.0-rc.1"
 dependencies = [
  "alloy",
  "blake3",
@@ -1182,7 +1182,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.8.0",
 ]
 
 [[package]]
@@ -1190,6 +1190,15 @@ name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
+
+[[package]]
+name = "bit-vec"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitcoin-io"
@@ -3643,7 +3652,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b45fcc2344c680f5025fe57779faef368840d0bd1f42f216291f0dc4ace4744"
 dependencies = [
  "bit-set",
- "bit-vec",
+ "bit-vec 0.8.0",
  "bitflags",
  "num-traits",
  "rand 0.9.4",
@@ -3876,9 +3885,9 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.14.7"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10b99e0098aa4082912d4c649628623db6aba77335e4f4569ff5083a6448b32e"
+checksum = "57f6d249aad744e274e682777a50283a225a32705394ee6d5fcc01efa25e4055"
 dependencies = [
  "pem",
  "ring",
@@ -4305,8 +4314,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.24.2"
-source = "git+https://github.com/saorsa-labs/saorsa-core?branch=fix/stability-improvements#5586795740eafd9818e827baa2eb2677ff3ba942"
+version = "0.24.3-rc.1"
+source = "git+https://github.com/saorsa-labs/saorsa-core?branch=rc-2026.5.2#8293fa50ca1397c9619b8d2de8ef5eb4e78c53c4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4419,8 +4428,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-transport"
-version = "0.34.1"
-source = "git+https://github.com/saorsa-labs/saorsa-transport?branch=fix/stability-improvements#55f423ca5e3312e31ba22475b68a76f4ffd50285"
+version = "0.34.2-rc.1"
+source = "git+https://github.com/saorsa-labs/saorsa-transport?branch=rc-2026.5.2#0e0de4d8992b06ef2c93701024ce509527db05e0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6281,10 +6290,11 @@ dependencies = [
 
 [[package]]
 name = "yasna"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
+checksum = "b5f6765e852b9b4dc8e2a76843e4d64d1cea8e79bcde0b6901aea8e7c7f08282"
 dependencies = [
+ "bit-vec 0.9.1",
  "time",
 ]
 
@@ -6333,9 +6343,9 @@ dependencies = [
 
 [[package]]
 name = "zerofrom"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69faa1f2a1ea75661980b013019ed6687ed0e83d069bc1114e2cc74c6c04c4df"
+checksum = "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
 dependencies = [
  "zerofrom-derive",
 ]
