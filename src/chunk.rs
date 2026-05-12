@@ -6,6 +6,7 @@
 //! This module defines the wire protocol messages for chunk operations
 //! using postcard serialization for compact, fast encoding.
 
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 /// Protocol identifier for chunk operations.
@@ -121,12 +122,18 @@ impl ChunkMessage {
 // =============================================================================
 
 /// Request to store a chunk.
+///
+/// `content` is held as `bytes::Bytes` so that callers fanning the same
+/// chunk out to multiple recipients (e.g. close-group replication) share a
+/// single backing buffer via refcount instead of deep-copying the 4 MB
+/// payload per peer. Wire format is unchanged: `Bytes` serializes as a
+/// byte sequence, identical to `Vec<u8>` under postcard/serde.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChunkPutRequest {
     /// The content-addressed identifier (BLAKE3 of content).
     pub address: XorName,
     /// The chunk data.
-    pub content: Vec<u8>,
+    pub content: Bytes,
     /// Optional payment proof (serialized `ProofOfPayment`).
     /// Required for new chunks unless already verified.
     pub payment_proof: Option<Vec<u8>>,
@@ -135,7 +142,7 @@ pub struct ChunkPutRequest {
 impl ChunkPutRequest {
     /// Create a new PUT request.
     #[must_use]
-    pub fn new(address: XorName, content: Vec<u8>) -> Self {
+    pub fn new(address: XorName, content: Bytes) -> Self {
         Self {
             address,
             content,
@@ -145,7 +152,7 @@ impl ChunkPutRequest {
 
     /// Create a new PUT request with payment proof.
     #[must_use]
-    pub fn with_payment(address: XorName, content: Vec<u8>, payment_proof: Vec<u8>) -> Self {
+    pub fn with_payment(address: XorName, content: Bytes, payment_proof: Vec<u8>) -> Self {
         Self {
             address,
             content,
@@ -386,7 +393,7 @@ mod tests {
     #[test]
     fn test_put_request_encode_decode() {
         let address = [0xAB; 32];
-        let content = vec![1, 2, 3, 4, 5];
+        let content = Bytes::from_static(&[1, 2, 3, 4, 5]);
         let request = ChunkPutRequest::new(address, content.clone());
         let msg = ChunkMessage {
             request_id: 42,
@@ -409,7 +416,7 @@ mod tests {
     #[test]
     fn test_put_request_with_payment() {
         let address = [0xAB; 32];
-        let content = vec![1, 2, 3, 4, 5];
+        let content = Bytes::from_static(&[1, 2, 3, 4, 5]);
         let payment = vec![10, 20, 30];
         let request = ChunkPutRequest::with_payment(address, content.clone(), payment.clone());
 
