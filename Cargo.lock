@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.1.1"
+version = "2.1.2-rc.1"
 dependencies = [
  "alloy",
  "blake3",
@@ -4365,9 +4365,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.24.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1267928da1bcc91748c314f95f7952bc01c0359a4ac70a0b111b0386898934"
+version = "0.24.5-rc.1"
+source = "git+https://github.com/saorsa-labs/saorsa-core?branch=rc-2026.5.5#7d8816996bfcf04a2a3d9069bb8c6327ac11b2af"
 dependencies = [
  "anyhow",
  "async-trait",
