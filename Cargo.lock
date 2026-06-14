@@ -4365,8 +4365,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.25.0"
-source = "git+https://github.com/mickvandijke/saorsa-core.git?branch=snp-witnessed-close-group#348c47595fe5290db7b918a98470b268bfd7c071"
+version = "0.25.1-rc.1"
+source = "git+https://github.com/mickvandijke/saorsa-core.git?branch=snp-witnessed-close-group#9344c3a5f95810ab2ac1ec64922ed902fb24f165"
 dependencies = [
  "anyhow",
  "async-trait",
