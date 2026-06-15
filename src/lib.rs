@@ -133,9 +133,8 @@ pub mod evm {
 pub mod transport {
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::{
-        ConsensusNode, DHTNode, IPDiversityConfig, MlDsa65, MultiAddr,
-        NodeConfig as CoreNodeConfig, NodeMode, P2PEvent, P2PNode, ResponderView,
-        WitnessedCloseGroup,
+        DHTNode, IPDiversityConfig, MlDsa65, MultiAddr, NodeConfig as CoreNodeConfig, NodeMode,
+        P2PEvent, P2PNode, ResponderView, WitnessedCloseGroup,
     };
 }
 
