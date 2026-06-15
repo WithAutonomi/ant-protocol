@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.1.4-rc.2"
+version = "2.2.0-rc.1"
 dependencies = [
  "alloy",
  "blake3",
@@ -4365,8 +4365,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.25.1-rc.2"
-source = "git+https://github.com/saorsa-labs/saorsa-core?branch=feat/witnessed-transcript-policy#d6877658b3b8248aeaeb7f422effd7d8b5499f98"
+version = "0.26.0-rc.1"
+source = "git+https://github.com/saorsa-labs/saorsa-core?branch=rc-2026.6.2#68862e790f981e73b6d8b4bc30d1c76b6c807a51"
 dependencies = [
  "anyhow",
  "async-trait",
