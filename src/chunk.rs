@@ -264,6 +264,24 @@ pub enum ChunkQuoteResponse {
         quote: Vec<u8>,
         /// `true` when the chunk already exists on this node (skip payment).
         already_stored: bool,
+        /// ADR-0003: the serialized signed storage commitment the quote's price
+        /// was derived from, so the client can verify the binding before paying
+        /// ("the commitment arrived with the quote") and forward it as a sidecar
+        /// in the PUT bundle. `None` for a baseline quote (no commitment to
+        /// pin), or from a node that has not yet rotated a commitment. Opaque
+        /// bytes: `ant-protocol` stays agnostic of `ant-node`'s commitment type;
+        /// the client resolves it only to match the quote's `commitment_pin`.
+        ///
+        /// NOTE: this enum is encoded with **postcard** (see [`ChunkMessage::encode`]),
+        /// which is non-self-describing — `#[serde(default)]` does NOT make an
+        /// old-format `Success` (without this field) decode against new code, and
+        /// vice versa. ADR-0003 is a HARD CUTOVER: the whole fleet and clients
+        /// upgrade together, so old/new `ChunkQuoteResponse` never interoperate.
+        /// The attribute only keeps `Default`-based construction ergonomic; it is
+        /// not a wire-compat guarantee. (Contrast `PaymentQuote`/`PaymentProof`,
+        /// which ARE rmp-encoded, where tail `serde(default)` is decode-compatible.)
+        #[serde(default)]
+        commitment: Option<Vec<u8>>,
     },
     /// Quote generation failed.
     Error(ProtocolError),
@@ -298,6 +316,14 @@ pub enum MerkleCandidateQuoteResponse {
     Success {
         /// Serialized `MerklePaymentCandidateNode`.
         candidate_node: Vec<u8>,
+        /// ADR-0003: the serialized signed storage commitment the candidate's
+        /// price was derived from, so the client can verify the binding before
+        /// paying and forward it as a sidecar in the merkle PUT bundle. `None`
+        /// for a baseline candidate. Same semantics as
+        /// [`ChunkQuoteResponse::Success::commitment`]; postcard-encoded, so
+        /// this is a hard-cutover field, not an interop guarantee.
+        #[serde(default)]
+        commitment: Option<Vec<u8>>,
     },
     /// Quote generation failed.
     Error(ProtocolError),
@@ -598,6 +624,7 @@ mod tests {
         let candidate_node_bytes = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let response = MerkleCandidateQuoteResponse::Success {
             candidate_node: candidate_node_bytes.clone(),
+            commitment: Some(vec![0x11, 0x22]),
         };
         let msg = ChunkMessage {
             request_id: 501,
@@ -609,10 +636,14 @@ mod tests {
 
         assert_eq!(decoded.request_id, 501);
         if let ChunkMessageBody::MerkleCandidateQuoteResponse(
-            MerkleCandidateQuoteResponse::Success { candidate_node },
+            MerkleCandidateQuoteResponse::Success {
+                candidate_node,
+                commitment,
+            },
         ) = decoded.body
         {
             assert_eq!(candidate_node, candidate_node_bytes);
+            assert_eq!(commitment, Some(vec![0x11, 0x22]));
         } else {
             panic!("expected MerkleCandidateQuoteResponse::Success");
         }
