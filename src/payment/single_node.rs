@@ -278,6 +278,8 @@ mod tests {
             rewards_address: RewardsAddress::new([rewards_addr_seed; 20]),
             pub_key: vec![],
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         }
     }
 
@@ -476,6 +478,8 @@ mod tests {
                 rewards_address: RewardsAddress::new([1u8; 20]),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
             quotes_with_prices.push((quote, Amount::from(*price)));
         }
@@ -586,6 +590,8 @@ mod tests {
                 rewards_address: RewardsAddress::new([i as u8 + 1; 20]),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
             quotes_with_prices.push((quote, Amount::from(*price)));
         }
@@ -698,6 +704,8 @@ mod tests {
                 rewards_address: wallet.address(),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
 
             quotes_with_prices.push((quote, price));
