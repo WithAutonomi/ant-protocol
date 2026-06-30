@@ -9,7 +9,7 @@
 //! unreasonable.
 //!
 //! This is the **single source of truth** both the node (when pricing a quote)
-//! and the client (when verifying ADR-0003's forced price before paying) must
+//! and the client (when verifying ADR-0004's forced price before paying) must
 //! agree on. It lives here, in the shared wire/contract crate, so the two sides
 //! can never drift: `ant-node` re-exports [`calculate_price`] from this module
 //! rather than defining its own.

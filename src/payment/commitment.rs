@@ -1,6 +1,6 @@
-//! The signed storage commitment — shared between node and client (ADR-0003).
+//! The signed storage commitment — shared between node and client (ADR-0004).
 //!
-//! ADR-0003 makes a quote's price a function of the node's audited storage
+//! ADR-0004 makes a quote's price a function of the node's audited storage
 //! commitment, and requires the **client** to fully verify that commitment
 //! before paying ("the client pays nothing it cannot resolve" — the ceiling's
 //! load-bearing wall). To do that the client needs the commitment type, its
@@ -37,7 +37,7 @@ pub const DOMAIN_COMMITMENT_HASH: &[u8] = b"autonomi.ant.replication.commitment_
 /// node does.
 pub const MAX_COMMITMENT_KEY_COUNT: u32 = 1_000_000;
 
-/// Maximum serialized size of a single commitment sidecar blob (ADR-0003).
+/// Maximum serialized size of a single commitment sidecar blob (ADR-0004).
 ///
 /// A well-formed `StorageCommitment` is ~5.3 KiB (root 32 + `key_count` 4 +
 /// `peer_id` 32 + pubkey 1952 + signature 3293 + serde framing). 8 KiB leaves
@@ -48,7 +48,7 @@ pub const MAX_COMMITMENT_SIDECAR_BYTES: usize = 8 * 1024;
 
 /// Signed storage commitment.
 ///
-/// Piggybacked on neighbour-sync gossip and shipped alongside a quote (ADR-0003).
+/// Piggybacked on neighbour-sync gossip and shipped alongside a quote (ADR-0004).
 /// The signature commits to the Merkle root, key count, sender peer ID, **and
 /// the sender's ML-DSA-65 public key** under [`DOMAIN_COMMITMENT`].
 ///
