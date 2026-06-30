@@ -20,7 +20,7 @@ pub struct PaymentProof {
     /// Transaction hashes from the on-chain payment.
     /// Typically contains one hash for the median (non-zero) quote.
     pub tx_hashes: Vec<TxHash>,
-    /// ADR-0003 commitment sidecars: the signed `StorageCommitment` each quote
+    /// ADR-0004 commitment sidecars: the signed `StorageCommitment` each quote
     /// pinned, so a storer can cross-check the quote's claimed count against the
     /// original commitment **synchronously**, without a gossip-cache hit or a
     /// post-payment fetch ("the commitment arrived with the quote"). Each entry
@@ -98,7 +98,7 @@ pub fn deserialize_proof(bytes: &[u8]) -> Result<(ProofOfPayment, Vec<TxHash>), 
     Ok((proof.proof_of_payment, proof.tx_hashes))
 }
 
-/// Deserialize the full single-node [`PaymentProof`], including the ADR-0003
+/// Deserialize the full single-node [`PaymentProof`], including the ADR-0004
 /// `commitment_sidecars`. Use this where the sidecars are needed (the node-side
 /// cross-check); [`deserialize_proof`] remains for callers that only want the
 /// quotes + tx hashes.

@@ -116,7 +116,7 @@ pub fn verify_merkle_candidate_signature(candidate: &MerklePaymentCandidateNode)
         }
     };
 
-    // ADR-0003: the per-node signature now covers the commitment binding
+    // ADR-0004: the per-node signature now covers the commitment binding
     // (`committed_key_count`, `commitment_pin`) too, so a count/pin mismatch is
     // genuine same-key-signed evidence. Must match `bytes_to_sign` in evmlib.
     let msg = MerklePaymentCandidateNode::bytes_to_sign(

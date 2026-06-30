@@ -264,7 +264,7 @@ pub enum ChunkQuoteResponse {
         quote: Vec<u8>,
         /// `true` when the chunk already exists on this node (skip payment).
         already_stored: bool,
-        /// ADR-0003: the serialized signed storage commitment the quote's price
+        /// ADR-0004: the serialized signed storage commitment the quote's price
         /// was derived from, so the client can verify the binding before paying
         /// ("the commitment arrived with the quote") and forward it as a sidecar
         /// in the PUT bundle. `None` for a baseline quote (no commitment to
@@ -275,7 +275,7 @@ pub enum ChunkQuoteResponse {
         /// NOTE: this enum is encoded with **postcard** (see [`ChunkMessage::encode`]),
         /// which is non-self-describing — `#[serde(default)]` does NOT make an
         /// old-format `Success` (without this field) decode against new code, and
-        /// vice versa. ADR-0003 is a HARD CUTOVER: the whole fleet and clients
+        /// vice versa. ADR-0004 is a HARD CUTOVER: the whole fleet and clients
         /// upgrade together, so old/new `ChunkQuoteResponse` never interoperate.
         /// The attribute only keeps `Default`-based construction ergonomic; it is
         /// not a wire-compat guarantee. (Contrast `PaymentQuote`/`PaymentProof`,
@@ -316,7 +316,7 @@ pub enum MerkleCandidateQuoteResponse {
     Success {
         /// Serialized `MerklePaymentCandidateNode`.
         candidate_node: Vec<u8>,
-        /// ADR-0003: the serialized signed storage commitment the candidate's
+        /// ADR-0004: the serialized signed storage commitment the candidate's
         /// price was derived from, so the client can verify the binding before
         /// paying and forward it as a sidecar in the merkle PUT bundle. `None`
         /// for a baseline candidate. Same semantics as

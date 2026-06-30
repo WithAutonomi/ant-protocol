@@ -8,9 +8,9 @@
 //! on `PaymentVault` — keeping both halves in one crate means the
 //! encoding, validation, and on-chain interaction are tested end to end.
 
-/// Signed storage-commitment type + verification shared by node and client (ADR-0003).
+/// Signed storage-commitment type + verification shared by node and client (ADR-0004).
 pub mod commitment;
-/// Quadratic storage-pricing formula shared by node and client (ADR-0003).
+/// Quadratic storage-pricing formula shared by node and client (ADR-0004).
 pub mod pricing;
 /// Payment proof serialization and type tagging.
 pub mod proof;
