@@ -1,6 +1,6 @@
 [package]
 name = "ant-protocol"
-version = "2.2.1"
+version = "2.3.0"
 edition = "2021"
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Wire protocol for the Autonomi decentralized network (WithAutonomi fork)"
@@ -23,7 +23,7 @@ path = "src/lib.rs"
 # breaking change for both downstream crates.
 saorsa-core = "0.26.1"
 saorsa-pqc = "0.5"
-evmlib = "0.8.1"
+evmlib = "0.9.0"
 
 # Content addressing (BLAKE3)
 blake3 = "1"

@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "alloy",
  "blake3",
@@ -2105,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "evmlib"
-version = "0.8.1"
+version = "0.9.0"
 source = "git+https://github.com/WithAutonomi/evmlib?branch=adr-0003-signed-quote-fields#4adfdb5615271f716e4233681fb4cf640a0a34d0"
 dependencies = [
  "alloy",

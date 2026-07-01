@@ -5,6 +5,16 @@ All notable changes to `ant-protocol` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.0]
+
+### Changed
+- **ADR-0004 (commitment-bound quote pricing):** verify the new signed
+  commitment fields (`committed_key_count`, `commitment_pin`) on single-node and
+  merkle quote types; centralise `StorageCommitment`, `commitment_hash`, sidecar
+  handling, and the shared `calculate_price`. Requires `evmlib` 0.9.0. Breaking
+  wire change — part of the coordinated ADR-0004 cutover (evmlib → ant-protocol →
+  ant-node/ant-client).
+
 ## [2.0.0] — Unreleased
 
 First release of the `2.x` series. Not wire-compatible with previous
