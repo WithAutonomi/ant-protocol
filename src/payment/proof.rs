@@ -20,6 +20,17 @@ pub struct PaymentProof {
     /// Transaction hashes from the on-chain payment.
     /// Typically contains one hash for the median (non-zero) quote.
     pub tx_hashes: Vec<TxHash>,
+    /// ADR-0004 commitment sidecars: the signed `StorageCommitment` each quote
+    /// pinned, so a storer can cross-check the quote's claimed count against the
+    /// original commitment **synchronously**, without a gossip-cache hit or a
+    /// post-payment fetch ("the commitment arrived with the quote"). Each entry
+    /// is an opaque serialized commitment blob — `ant-protocol` stays agnostic
+    /// of `ant-node`'s commitment type; the node deserializes and validates each
+    /// with the full peer/pubkey/signature/hash gates before trusting it.
+    /// Tail-placed, `serde(default)`: an old proof (or a baseline-only bundle)
+    /// simply carries none, and the node falls back to gossip/fetch.
+    #[serde(default)]
+    pub commitment_sidecars: Vec<Vec<u8>>,
 }
 
 /// The detected type of a payment proof.
@@ -83,15 +94,27 @@ pub fn serialize_merkle_proof(
 ///
 /// Returns an error if the tag is missing or the bytes cannot be deserialized.
 pub fn deserialize_proof(bytes: &[u8]) -> Result<(ProofOfPayment, Vec<TxHash>), String> {
+    let proof = deserialize_single_node_proof(bytes)?;
+    Ok((proof.proof_of_payment, proof.tx_hashes))
+}
+
+/// Deserialize the full single-node [`PaymentProof`], including the ADR-0004
+/// `commitment_sidecars`. Use this where the sidecars are needed (the node-side
+/// cross-check); [`deserialize_proof`] remains for callers that only want the
+/// quotes + tx hashes.
+///
+/// # Errors
+///
+/// Returns an error if the tag is missing or the bytes cannot be deserialized.
+pub fn deserialize_single_node_proof(bytes: &[u8]) -> Result<PaymentProof, String> {
     if bytes.first() != Some(&PROOF_TAG_SINGLE_NODE) {
         return Err("Missing single-node proof tag byte".to_string());
     }
     let payload = bytes
         .get(1..)
         .ok_or_else(|| "Single-node proof tag present but no payload".to_string())?;
-    let proof = rmp_serde::from_slice::<PaymentProof>(payload)
-        .map_err(|e| format!("Failed to deserialize single-node proof: {e}"))?;
-    Ok((proof.proof_of_payment, proof.tx_hashes))
+    rmp_serde::from_slice::<PaymentProof>(payload)
+        .map_err(|e| format!("Failed to deserialize single-node proof: {e}"))
 }
 
 /// Deserialize proof bytes as a `MerklePaymentProof`.
@@ -139,6 +162,8 @@ mod tests {
             rewards_address: RewardsAddress::new([1u8; 20]),
             pub_key: vec![],
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         }
     }
 
@@ -155,6 +180,7 @@ mod tests {
         let proof = PaymentProof {
             proof_of_payment: make_proof_of_payment(),
             tx_hashes: vec![tx_hash],
+            commitment_sidecars: vec![],
         };
 
         let bytes = serialize_single_node_proof(&proof).unwrap();
@@ -170,6 +196,7 @@ mod tests {
         let proof = PaymentProof {
             proof_of_payment: make_proof_of_payment(),
             tx_hashes: vec![],
+            commitment_sidecars: vec![],
         };
 
         let bytes = serialize_single_node_proof(&proof).unwrap();
@@ -192,6 +219,7 @@ mod tests {
         let proof = PaymentProof {
             proof_of_payment: make_proof_of_payment(),
             tx_hashes: vec![],
+            commitment_sidecars: vec![],
         };
         let raw_bytes = rmp_serde::to_vec(&proof).unwrap();
         let result = deserialize_proof(&raw_bytes);
@@ -205,6 +233,7 @@ mod tests {
         let proof = PaymentProof {
             proof_of_payment: make_proof_of_payment(),
             tx_hashes: vec![tx1, tx2],
+            commitment_sidecars: vec![],
         };
 
         let bytes = serialize_single_node_proof(&proof).unwrap();
@@ -257,6 +286,7 @@ mod tests {
         let proof = PaymentProof {
             proof_of_payment: make_proof_of_payment(),
             tx_hashes: vec![tx_hash],
+            commitment_sidecars: vec![],
         };
 
         let tagged_bytes = serialize_single_node_proof(&proof).unwrap();
@@ -306,8 +336,13 @@ mod tests {
                 let price = Amount::from(1024u64);
                 #[allow(clippy::cast_possible_truncation)]
                 let reward_address = RewardsAddress::new([i as u8; 20]);
-                let msg =
-                    MerklePaymentCandidateNode::bytes_to_sign(&price, &reward_address, timestamp);
+                let msg = MerklePaymentCandidateNode::bytes_to_sign(
+                    &price,
+                    &reward_address,
+                    timestamp,
+                    0,
+                    &None,
+                );
                 let sk = MlDsaSecretKey::from_bytes(secret_key.as_bytes()).expect("sk");
                 let signature = ml_dsa.sign(&sk, &msg).expect("sign").as_bytes().to_vec();
 
@@ -316,6 +351,8 @@ mod tests {
                     price,
                     reward_address,
                     merkle_payment_timestamp: timestamp,
+                    committed_key_count: 0,
+                    commitment_pin: None,
                     signature,
                 }
             });

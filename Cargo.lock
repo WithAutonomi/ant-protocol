@@ -2106,8 +2106,7 @@ dependencies = [
 [[package]]
 name = "evmlib"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd96cf24017cd31cd422c80de3078a821b7884a5b1feb00087e98209326c676"
+source = "git+https://github.com/WithAutonomi/evmlib?branch=adr-0003-signed-quote-fields#4adfdb5615271f716e4233681fb4cf640a0a34d0"
 dependencies = [
  "alloy",
  "ant-merkle",
@@ -3743,9 +3742,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.14"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "434b42fec591c96ef50e21e886936e66d3cc3f737104fdb9b737c40ffb94c098"
+checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
 dependencies = [
  "aws-lc-rs",
  "bytes",

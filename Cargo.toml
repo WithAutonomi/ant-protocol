@@ -70,3 +70,16 @@ expect_used = "deny"
 panic = "deny"
 # Allow non-const functions — the constructors may gain runtime behaviour.
 missing_const_for_fn = "allow"
+
+# ─── TEMPORARY: STRIP BEFORE MERGE — ADR-0004 coordinated cutover ───
+# evmlib's ADR-0004 signed quote fields (`committed_key_count`,
+# `commitment_pin`) are not yet published, so this crate cannot build against
+# the crates.io `evmlib = "0.8.1"` pinned above. This git patch points the dep
+# at the evmlib PR branch so CI can build the coordinated change.
+#
+# AT RELEASE (once evmlib's ADR-0004 version is published to crates.io):
+#   1. delete this entire [patch.crates-io] block, AND
+#   2. bump the evmlib pin in [dependencies] above to the published version:
+#        evmlib = "0.9.0"   # <- published ADR-0004 evmlib (breaking bump from 0.8.1)
+[patch.crates-io]
+evmlib = { git = "https://github.com/WithAutonomi/evmlib", branch = "adr-0003-signed-quote-fields" }
