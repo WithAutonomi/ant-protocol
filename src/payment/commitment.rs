@@ -144,6 +144,27 @@ pub fn verify_commitment_signature(c: &StorageCommitment) -> bool {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use saorsa_pqc::api::sig::ml_dsa_65;
+
+    /// Build a genuinely-signed commitment (fresh ML-DSA-65 keypair, signed over
+    /// the exact `commitment_signed_payload` under `DOMAIN_COMMITMENT`) — the same
+    /// thing the node produces. Returns the commitment and the keypair's public
+    /// bytes so tamper tests can key-swap.
+    fn signed_commitment(root: [u8; 32], key_count: u32, peer_id: [u8; 32]) -> StorageCommitment {
+        let (pk, sk) = ml_dsa_65().generate_keypair().unwrap();
+        let pk_bytes = pk.to_bytes();
+        let payload = commitment_signed_payload(&root, key_count, &peer_id, &pk_bytes);
+        let sig = ml_dsa_65()
+            .sign_with_context(&sk, &payload, DOMAIN_COMMITMENT)
+            .unwrap();
+        StorageCommitment {
+            root,
+            key_count,
+            sender_peer_id: peer_id,
+            sender_public_key: pk_bytes,
+            signature: sig.to_bytes(),
+        }
+    }
 
     /// A malformed commitment (bad pubkey / signature) fails verification
     /// rather than panicking — the client runs this on untrusted bytes.
@@ -181,6 +202,55 @@ mod tests {
             commitment_hash(&c2).unwrap(),
             h1,
             "changing key_count must change the pin"
+        );
+    }
+
+    /// A correctly-signed commitment verifies. Without this, a regression that
+    /// made `verify_commitment_signature` always return `false` (or ignore the
+    /// signature) would pass every other test in this module.
+    #[test]
+    fn verify_accepts_a_correctly_signed_commitment() {
+        let c = signed_commitment([7u8; 32], 42, [9u8; 32]);
+        assert!(
+            verify_commitment_signature(&c),
+            "a genuinely signed commitment must verify"
+        );
+    }
+
+    /// The signature covers `root`, `key_count`, `peer_id`, and the embedded
+    /// pubkey — mutating any of them after signing must fail verification. This
+    /// is the ADR-0004 "the fields are covered by the signature" invariant.
+    #[test]
+    fn verify_rejects_any_field_tampered_after_signing() {
+        // key_count
+        let mut c = signed_commitment([1u8; 32], 100, [2u8; 32]);
+        c.key_count = c.key_count.wrapping_add(1);
+        assert!(
+            !verify_commitment_signature(&c),
+            "tampered key_count must fail"
+        );
+
+        // root
+        let mut c = signed_commitment([1u8; 32], 100, [2u8; 32]);
+        c.root[0] ^= 0xff;
+        assert!(!verify_commitment_signature(&c), "tampered root must fail");
+
+        // sender_peer_id
+        let mut c = signed_commitment([1u8; 32], 100, [2u8; 32]);
+        c.sender_peer_id[0] ^= 0xff;
+        assert!(
+            !verify_commitment_signature(&c),
+            "tampered peer_id must fail"
+        );
+
+        // key-swap: keep the body + signature, swap in a different valid pubkey.
+        // The pubkey is bound into the signed payload, so this must fail.
+        let mut c = signed_commitment([1u8; 32], 100, [2u8; 32]);
+        let (other_pk, _) = ml_dsa_65().generate_keypair().unwrap();
+        c.sender_public_key = other_pk.to_bytes();
+        assert!(
+            !verify_commitment_signature(&c),
+            "swapping the embedded pubkey must fail"
         );
     }
 }

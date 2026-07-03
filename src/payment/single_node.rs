@@ -690,8 +690,9 @@ mod tests {
         let chunk_xor = XorName::random(&mut rand::thread_rng());
 
         // Prices are arbitrary but distinct so median selection is unambiguous.
-        // The ant-node crate owns the real `calculate_price` — this crate only
-        // exercises payment construction and on-chain verification.
+        // This test only exercises payment construction and on-chain
+        // verification; the real `calculate_price` (now in this crate's
+        // `payment::pricing`, per ADR-0004) is unit-tested there.
         let mut quotes_with_prices = Vec::new();
         for i in 0..CLOSE_GROUP_SIZE {
             #[allow(clippy::cast_possible_truncation)]
