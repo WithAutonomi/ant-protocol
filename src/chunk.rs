@@ -317,9 +317,14 @@ pub enum MerkleCandidateQuoteResponse {
         /// Serialized `MerklePaymentCandidateNode`.
         candidate_node: Vec<u8>,
         /// ADR-0004: the serialized signed storage commitment the candidate's
-        /// price was derived from, so the client can verify the binding before
-        /// paying and forward it as a sidecar in the merkle PUT bundle. `None`
-        /// for a baseline candidate. Same semantics as
+        /// price was derived from, so the client can fully resolve the binding
+        /// BEFORE paying (resolve-before-pay). `None` for a baseline candidate.
+        /// Unlike the single-node path, this commitment is NOT forwarded in the
+        /// merkle PUT bundle — sixteen per-candidate sidecars exceeded the
+        /// storer's payment-proof size budget, so current clients omit them and
+        /// storers resolve merkle pins from gossip or a `GetCommitmentByPin`
+        /// fetch (`MerklePaymentProof.commitment_sidecars` stays for legacy
+        /// bundles). Same semantics as
         /// [`ChunkQuoteResponse::Success::commitment`]; postcard-encoded, so
         /// this is a hard-cutover field, not an interop guarantee.
         #[serde(default)]
