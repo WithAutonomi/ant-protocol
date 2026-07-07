@@ -154,6 +154,8 @@ pub mod pqc {
 
     /// Higher-level `api::sig::*` API (used for release signatures).
     pub mod api {
-        pub use saorsa_pqc::api::sig::{ml_dsa_65, MlDsaPublicKey, MlDsaSignature, MlDsaVariant};
+        pub use saorsa_pqc::api::sig::{
+            ml_dsa_65, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, MlDsaVariant,
+        };
     }
 }

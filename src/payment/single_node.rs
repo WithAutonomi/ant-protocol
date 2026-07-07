@@ -278,6 +278,8 @@ mod tests {
             rewards_address: RewardsAddress::new([rewards_addr_seed; 20]),
             pub_key: vec![],
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         }
     }
 
@@ -476,6 +478,8 @@ mod tests {
                 rewards_address: RewardsAddress::new([1u8; 20]),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
             quotes_with_prices.push((quote, Amount::from(*price)));
         }
@@ -586,6 +590,8 @@ mod tests {
                 rewards_address: RewardsAddress::new([i as u8 + 1; 20]),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
             quotes_with_prices.push((quote, Amount::from(*price)));
         }
@@ -684,8 +690,9 @@ mod tests {
         let chunk_xor = XorName::random(&mut rand::thread_rng());
 
         // Prices are arbitrary but distinct so median selection is unambiguous.
-        // The ant-node crate owns the real `calculate_price` — this crate only
-        // exercises payment construction and on-chain verification.
+        // This test only exercises payment construction and on-chain
+        // verification; the real `calculate_price` (now in this crate's
+        // `payment::pricing`, per ADR-0004) is unit-tested there.
         let mut quotes_with_prices = Vec::new();
         for i in 0..CLOSE_GROUP_SIZE {
             #[allow(clippy::cast_possible_truncation)]
@@ -698,6 +705,8 @@ mod tests {
                 rewards_address: wallet.address(),
                 pub_key: vec![],
                 signature: vec![],
+                committed_key_count: 0,
+                commitment_pin: None,
             };
 
             quotes_with_prices.push((quote, price));

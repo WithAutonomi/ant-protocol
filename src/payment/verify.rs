@@ -116,10 +116,15 @@ pub fn verify_merkle_candidate_signature(candidate: &MerklePaymentCandidateNode)
         }
     };
 
+    // ADR-0004: the per-node signature now covers the commitment binding
+    // (`committed_key_count`, `commitment_pin`) too, so a count/pin mismatch is
+    // genuine same-key-signed evidence. Must match `bytes_to_sign` in evmlib.
     let msg = MerklePaymentCandidateNode::bytes_to_sign(
         &candidate.price,
         &candidate.reward_address,
         candidate.merkle_payment_timestamp,
+        candidate.committed_key_count,
+        &candidate.commitment_pin,
     );
 
     let ml_dsa = MlDsa65::new();
@@ -160,6 +165,8 @@ mod tests {
             rewards_address: RewardsAddress::new([2u8; 20]),
             pub_key: pub_key_bytes,
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         };
         let msg = quote.bytes_for_sig();
         let sk = MlDsaSecretKey::from_bytes(secret_key.as_bytes()).expect("sk");
@@ -206,6 +213,8 @@ mod tests {
             rewards_address: RewardsAddress::new([0u8; 20]),
             pub_key: vec![],
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         };
         assert!(!verify_quote_signature(&quote));
     }
@@ -221,6 +230,8 @@ mod tests {
             rewards_address: RewardsAddress::new([0u8; 20]),
             pub_key: pub_key.as_bytes().to_vec(),
             signature: vec![],
+            committed_key_count: 0,
+            commitment_pin: None,
         };
         assert!(!verify_quote_signature(&quote));
     }
@@ -231,10 +242,14 @@ mod tests {
         let price = Amount::from(1024u64);
         let reward_address = RewardsAddress::new([3u8; 20]);
         let merkle_payment_timestamp = 1_700_000_000u64;
+        let committed_key_count = 7u32;
+        let commitment_pin = Some([5u8; 32]);
         let msg = MerklePaymentCandidateNode::bytes_to_sign(
             &price,
             &reward_address,
             merkle_payment_timestamp,
+            committed_key_count,
+            &commitment_pin,
         );
         let sk = MlDsaSecretKey::from_bytes(secret_key.as_bytes()).expect("sk");
         let signature = ml_dsa.sign(&sk, &msg).expect("sign").as_bytes().to_vec();
@@ -243,6 +258,8 @@ mod tests {
             price,
             reward_address,
             merkle_payment_timestamp,
+            committed_key_count,
+            commitment_pin,
             signature,
         }
     }
