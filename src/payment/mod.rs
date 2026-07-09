@@ -8,6 +8,8 @@
 //! on `PaymentVault` — keeping both halves in one crate means the
 //! encoding, validation, and on-chain interaction are tested end to end.
 
+/// Signed audit-report type + verification shared by node and client (ADR-0005).
+pub mod audit_report;
 /// Signed storage-commitment type + verification shared by node and client (ADR-0004).
 pub mod commitment;
 /// Quadratic storage-pricing formula shared by node and client (ADR-0004).
@@ -19,6 +21,10 @@ pub mod single_node;
 /// Pure ML-DSA-65 verification helpers for quotes and merkle candidates.
 pub mod verify;
 
+pub use audit_report::{
+    audit_report_signed_payload, verify_audit_report, AuditReport, AuditReportDay, AuditReportRow,
+    DOMAIN_AUDIT_REPORT, MAX_AUDIT_REPORT_BYTES, MAX_REPORT_DAYS, MAX_REPORT_ROWS,
+};
 pub use commitment::{
     commitment_hash, verify_commitment_signature, StorageCommitment, MAX_COMMITMENT_KEY_COUNT,
 };

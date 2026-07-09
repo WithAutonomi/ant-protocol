@@ -40,7 +40,7 @@ pub const MAX_COMMITMENT_KEY_COUNT: u32 = 1_000_000;
 /// Maximum serialized size of a single commitment sidecar blob (ADR-0004).
 ///
 /// A well-formed `StorageCommitment` is ~5.3 KiB (root 32 + `key_count` 4 +
-/// `peer_id` 32 + pubkey 1952 + signature 3293 + serde framing). 8 KiB leaves
+/// `peer_id` 32 + pubkey 1952 + signature 3309 + serde framing). 8 KiB leaves
 /// generous headroom while bounding the deserialize/verify work a malicious
 /// quote responder or client can force on the hot verification path. A sidecar
 /// larger than this is rejected before any parse attempt.
@@ -57,7 +57,7 @@ pub const MAX_COMMITMENT_SIDECAR_BYTES: usize = 8 * 1024;
 /// Binding the public key in the signed payload prevents a key-swap attack.
 ///
 /// Wire size ≈ 5.3 KiB (root 32 B + `key_count` 4 B + `peer_id` 32 B + pubkey
-/// 1952 B + signature 3293 B).
+/// 1952 B + signature 3309 B).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StorageCommitment {
     /// Merkle root over the responder's claimed keys.
@@ -70,7 +70,7 @@ pub struct StorageCommitment {
     /// can verify the signature without a separate pubkey directory. Bound by
     /// the signature.
     pub sender_public_key: Vec<u8>,
-    /// ML-DSA-65 signature over canonical commitment fields. 3293 bytes.
+    /// ML-DSA-65 signature over canonical commitment fields. 3309 bytes.
     pub signature: Vec<u8>,
 }
 

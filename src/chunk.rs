@@ -236,16 +236,22 @@ pub struct ChunkQuoteRequest {
     pub data_size: u64,
     /// Data type identifier (0 for chunks).
     pub data_type: u32,
+    /// ADR-0005: client-generated nonce echoed (and signed) by the responder's
+    /// audit report, forcing the report to be generated fresh for this request
+    /// — it cannot be precomputed or replayed. Postcard-encoded, so this is a
+    /// hard-cutover field (see [`ChunkQuoteResponse::Success::commitment`]).
+    pub report_nonce: [u8; 32],
 }
 
 impl ChunkQuoteRequest {
     /// Create a new quote request.
     #[must_use]
-    pub fn new(address: XorName, data_size: u64) -> Self {
+    pub fn new(address: XorName, data_size: u64, report_nonce: [u8; 32]) -> Self {
         Self {
             address,
             data_size,
             data_type: DATA_TYPE_CHUNK,
+            report_nonce,
         }
     }
 }
@@ -282,6 +288,15 @@ pub enum ChunkQuoteResponse {
         /// which ARE rmp-encoded, where tail `serde(default)` is decode-compatible.)
         #[serde(default)]
         commitment: Option<Vec<u8>>,
+        /// ADR-0005: the responder's serialized signed [`crate::payment::AuditReport`]
+        /// — its raw audit tally for the peers it observes near this address,
+        /// bound to the request's `report_nonce`. The client aggregates a
+        /// quorum of these to decide reward eligibility at collection time;
+        /// reports are never forwarded in payment bundles. `None` while the
+        /// node has nothing to report. Opaque bytes, hard-cutover like the
+        /// `commitment` field above.
+        #[serde(default)]
+        audit_report: Option<Vec<u8>>,
     },
     /// Quote generation failed.
     Error(ProtocolError),
@@ -305,6 +320,30 @@ pub struct MerkleCandidateQuoteRequest {
     pub data_size: u64,
     /// Client-provided merkle payment timestamp (unix seconds).
     pub merkle_payment_timestamp: u64,
+    /// ADR-0005: client-generated nonce echoed (and signed) by the responder's
+    /// audit report — same semantics as [`ChunkQuoteRequest::report_nonce`].
+    pub report_nonce: [u8; 32],
+}
+
+impl MerkleCandidateQuoteRequest {
+    /// Create a new merkle candidate quote request. Mirrors
+    /// [`ChunkQuoteRequest::new`] so both request types have a constructor
+    /// rather than only the single-node one.
+    #[must_use]
+    pub fn new(
+        address: XorName,
+        data_size: u64,
+        merkle_payment_timestamp: u64,
+        report_nonce: [u8; 32],
+    ) -> Self {
+        Self {
+            address,
+            data_type: DATA_TYPE_CHUNK,
+            data_size,
+            merkle_payment_timestamp,
+            report_nonce,
+        }
+    }
 }
 
 /// Response with a merkle candidate quote.
@@ -329,6 +368,12 @@ pub enum MerkleCandidateQuoteResponse {
         /// this is a hard-cutover field, not an interop guarantee.
         #[serde(default)]
         commitment: Option<Vec<u8>>,
+        /// ADR-0005: the responder's serialized signed [`crate::payment::AuditReport`],
+        /// bound to the request's `report_nonce` — same semantics as
+        /// [`ChunkQuoteResponse::Success::audit_report`]. Consumed at
+        /// collection time only; never enters the merkle payment bundle.
+        #[serde(default)]
+        audit_report: Option<Vec<u8>>,
     },
     /// Quote generation failed.
     Error(ProtocolError),
@@ -523,7 +568,7 @@ mod tests {
     #[test]
     fn test_quote_request_encode_decode() {
         let address = [0x34; 32];
-        let request = ChunkQuoteRequest::new(address, 1024);
+        let request = ChunkQuoteRequest::new(address, 1024, [0x77; 32]);
         let msg = ChunkMessage {
             request_id: 1,
             body: ChunkMessageBody::QuoteRequest(request),
@@ -537,6 +582,7 @@ mod tests {
             assert_eq!(req.address, address);
             assert_eq!(req.data_size, 1024);
             assert_eq!(req.data_type, DATA_TYPE_CHUNK);
+            assert_eq!(req.report_nonce, [0x77; 32]);
         } else {
             panic!("expected QuoteRequest");
         }
@@ -604,6 +650,7 @@ mod tests {
             data_type: DATA_TYPE_CHUNK,
             data_size: 2048,
             merkle_payment_timestamp: 1_700_000_000,
+            report_nonce: [0x88; 32],
         };
         let msg = ChunkMessage {
             request_id: 500,
@@ -619,6 +666,7 @@ mod tests {
             assert_eq!(req.data_type, DATA_TYPE_CHUNK);
             assert_eq!(req.data_size, 2048);
             assert_eq!(req.merkle_payment_timestamp, 1_700_000_000);
+            assert_eq!(req.report_nonce, [0x88; 32]);
         } else {
             panic!("expected MerkleCandidateQuoteRequest");
         }
@@ -630,6 +678,7 @@ mod tests {
         let response = MerkleCandidateQuoteResponse::Success {
             candidate_node: candidate_node_bytes.clone(),
             commitment: Some(vec![0x11, 0x22]),
+            audit_report: Some(vec![0x33, 0x44]),
         };
         let msg = ChunkMessage {
             request_id: 501,
@@ -644,11 +693,13 @@ mod tests {
             MerkleCandidateQuoteResponse::Success {
                 candidate_node,
                 commitment,
+                audit_report,
             },
         ) = decoded.body
         {
             assert_eq!(candidate_node, candidate_node_bytes);
             assert_eq!(commitment, Some(vec![0x11, 0x22]));
+            assert_eq!(audit_report, Some(vec![0x33, 0x44]));
         } else {
             panic!("expected MerkleCandidateQuoteResponse::Success");
         }
