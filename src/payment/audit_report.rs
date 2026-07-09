@@ -14,7 +14,7 @@
 //! only silences that one observer's testimony, it never excludes anyone on
 //! its own (client policy aggregates a quorum).
 //!
-//! Like [`super::commitment`], only the wire type and its verification live
+//! Like the `commitment` module, only the wire type and its verification live
 //! here. Tally bookkeeping and signing live in `ant-node`; the eligibility
 //! predicate (policy over these facts) lives in the client.
 
@@ -77,10 +77,14 @@ pub struct AuditReportRow {
     /// no pass has cleared it since. A fenced row is testimony the client
     /// must not count — nothing more (silence is not portable evidence).
     pub fenced: bool,
-    /// This observer deterministically convicted the subject and the subject
-    /// has not passed an audit since. The row was zeroed at conviction, so
-    /// the lasting cost is the destroyed history (the D-day re-grind); the
-    /// marker itself clears on the subject's next pass.
+    /// This observer deterministically convicted the subject. The row was
+    /// zeroed at conviction (the D-day re-grind), and the marker stays **sticky
+    /// for the dues period (~D days)** even as fresh passes accrue underneath —
+    /// it does NOT clear on the next pass. So one catch costs exactly one
+    /// week's re-earning and never compounds into a permanent ban. A client
+    /// treats a convicted row as a non-vouching opinion (it counts in the
+    /// denominator, never the numerator) until the sticky period ages out on
+    /// the reporting node. Node and client MUST share this sticky semantics.
     pub convicted: bool,
 }
 

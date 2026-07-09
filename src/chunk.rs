@@ -10,10 +10,17 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 /// Protocol identifier for chunk operations.
-pub const CHUNK_PROTOCOL_ID: &str = "autonomi.ant.chunk.v1";
+///
+/// Bumped to `v2` for ADR-0005: the quote request gains a required
+/// `report_nonce` and the quote response a required `audit_report` field.
+/// Because `ChunkMessage` is postcard-encoded (non-self-describing), old and
+/// new peers cannot interoperate — a distinct protocol id makes the cutover
+/// explicit so a `v1` peer and a `v2` peer never negotiate a chunk stream.
+pub const CHUNK_PROTOCOL_ID: &str = "autonomi.ant.chunk.v2";
 
-/// Current protocol version.
-pub const PROTOCOL_VERSION: u16 = 1;
+/// Current protocol version. Bumped to 2 for the ADR-0005 wire change
+/// (see [`CHUNK_PROTOCOL_ID`]).
+pub const PROTOCOL_VERSION: u16 = 2;
 
 /// Maximum chunk size in bytes (4MB).
 pub const MAX_CHUNK_SIZE: usize = 4 * 1024 * 1024;
@@ -626,8 +633,8 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert_eq!(CHUNK_PROTOCOL_ID, "autonomi.ant.chunk.v1");
-        assert_eq!(PROTOCOL_VERSION, 1);
+        assert_eq!(CHUNK_PROTOCOL_ID, "autonomi.ant.chunk.v2");
+        assert_eq!(PROTOCOL_VERSION, 2);
         assert_eq!(MAX_CHUNK_SIZE, 4 * 1024 * 1024);
         assert_eq!(DATA_TYPE_CHUNK, 0);
     }
