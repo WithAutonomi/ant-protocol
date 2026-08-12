@@ -21,7 +21,9 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-saorsa-core = "0.27.3"
+# Temporary stacked-PR dependency; replace with the released version from
+# WithAutonomi/saorsa-core#162 before merging.
+saorsa-core = { git = "https://github.com/WithAutonomi/saorsa-core.git", branch = "feat/v2-903-download-route-diagnostics" }
 saorsa-pqc = "0.5"
 evmlib = "0.9.1"
 

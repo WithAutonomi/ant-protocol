@@ -4355,8 +4355,7 @@ dependencies = [
 [[package]]
 name = "saorsa-core"
 version = "0.27.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5929d77d38c0ffb422393a2420f9d2f9ecd92deaa9859b3bfbbe58bada68e40a"
+source = "git+https://github.com/WithAutonomi/saorsa-core.git?branch=feat/v2-903-download-route-diagnostics#53ec4ba02144c142c666aed0e2e59cf82c4295f2"
 dependencies = [
  "anyhow",
  "async-trait",
