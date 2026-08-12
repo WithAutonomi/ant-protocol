@@ -11,6 +11,23 @@ use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::time::Instant;
 
+/// A decoded chunk-protocol response together with transport provenance.
+///
+/// `transport_source` is supplied by the authenticated transport receive path.
+/// It is diagnostic metadata, not an identity signal; `source_peer` remains
+/// the authenticated application-level peer identity used by the response
+/// filter.
+#[derive(Debug)]
+pub struct ChunkProtocolResponse<T, E> {
+    /// Result produced by the caller's response handler. Keeping the result
+    /// inside the envelope preserves provenance for structured remote errors.
+    pub result: Result<T, E>,
+    /// Authenticated peer that supplied the matching response.
+    pub source_peer: PeerId,
+    /// Transport address that delivered the response, when available.
+    pub transport_source: Option<MultiAddr>,
+}
+
 /// Send a chunk-protocol message to `target_peer` and await a matching response.
 ///
 /// The event loop filters by topic (`CHUNK_PROTOCOL_ID`), source peer, decode
@@ -39,6 +56,47 @@ pub async fn send_and_await_chunk_response<T, E>(
     send_error: impl FnOnce(String) -> E,
     timeout_error: impl FnOnce() -> E,
 ) -> Result<T, E> {
+    send_and_await_chunk_response_with_metadata(
+        node,
+        target_peer,
+        message_bytes,
+        request_id,
+        timeout,
+        peer_addrs,
+        response_handler,
+        send_error,
+        timeout_error,
+    )
+    .await
+    .and_then(|response| response.result)
+}
+
+/// Send a chunk-protocol message and return the decoded response plus the
+/// observed transport provenance.
+///
+/// This follows the same filtering and timeout behaviour as
+/// [`send_and_await_chunk_response`]. The additional metadata is captured from
+/// the already-received event and does not alter peer selection, dialing,
+/// retries, or response acceptance.
+///
+/// # Errors
+///
+/// Returns `Err(E)` if sending fails (via `send_error`) or the deadline
+/// expires (via `timeout_error`). A decoded protocol-level response error is
+/// retained in [`ChunkProtocolResponse::result`] so its source metadata is not
+/// lost.
+#[allow(clippy::too_many_arguments)]
+pub async fn send_and_await_chunk_response_with_metadata<T, E>(
+    node: &P2PNode,
+    target_peer: &PeerId,
+    message_bytes: Vec<u8>,
+    request_id: u64,
+    timeout: Duration,
+    peer_addrs: &[MultiAddr],
+    response_handler: impl Fn(ChunkMessageBody) -> Option<Result<T, E>>,
+    send_error: impl FnOnce(String) -> E,
+    timeout_error: impl FnOnce() -> E,
+) -> Result<ChunkProtocolResponse<T, E>, E> {
     // Subscribe before sending so we don't miss the response
     let mut events = node.subscribe_events();
 
@@ -59,6 +117,7 @@ pub async fn send_and_await_chunk_response<T, E>(
             Ok(Ok(P2PEvent::Message {
                 topic,
                 source: Some(source),
+                transport_source,
                 data,
                 ..
             })) if topic == CHUNK_PROTOCOL_ID && source == *target_peer => {
@@ -73,7 +132,11 @@ pub async fn send_and_await_chunk_response<T, E>(
                     continue;
                 }
                 if let Some(result) = response_handler(response.body) {
-                    return result;
+                    return Ok(ChunkProtocolResponse {
+                        result,
+                        source_peer: source,
+                        transport_source,
+                    });
                 }
             }
             Ok(Ok(_)) => {}
