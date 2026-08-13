@@ -66,13 +66,56 @@ pub const CURRENT_SETTLEMENT_VERSION: u32 = 1;
 /// keep serving.
 pub const MIN_SUPPORTED_SETTLEMENT_VERSION: u32 = 1;
 
-/// Does a client reporting `version` settle the way this build expects?
+/// Whether a storer on this build can promise to accept what a client
+/// settling under `client_version` will pay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettlementCompatibility {
+    /// Both sides settle the same way. Safe to quote.
+    Compatible,
+    /// The client settles under rules this build has superseded. Its payment
+    /// would be refused, so it must not be quoted.
+    ClientTooOld,
+    /// The client settles under rules this build does not know. **This build
+    /// is the old one**, and it cannot promise to accept the resulting
+    /// payment, so it must not be quoted either.
+    NodeTooOld,
+}
+
+/// Can a storer on this build safely quote a client settling under
+/// `client_version`?
 ///
 /// Unversioned clients never reach this: they send the legacy request variants
 /// and are handled by policy in the storer, not here.
+///
+/// # Why both ends are bounded
+///
+/// An earlier revision accepted everything at or above
+/// [`MIN_SUPPORTED_SETTLEMENT_VERSION`], on the reasoning that a storer
+/// verifies whatever payment actually arrives so letting a newer client
+/// through weakens nothing. That is only true when a settlement change raises
+/// what is paid: ADR-0008's 3x cleared an old node's 1x minimum, so old nodes
+/// accepted new clients for free. It is **not** true in general. A change that
+/// redefines the median rule, or which field the contract pays from, produces
+/// a payment an older verifier rejects, and by then the client has already
+/// settled on-chain and cannot be refunded. That is the exact failure this
+/// mechanism exists to prevent, so an unknown-newer version is refused rather
+/// than assumed compatible.
+///
+/// The two refusals are kept apart because they need opposite handling.
+/// [`SettlementCompatibility::ClientTooOld`] is terminal and the user must
+/// upgrade. [`SettlementCompatibility::NodeTooOld`] says nothing about the
+/// client, which should simply use a different storer. Collapsing them would
+/// either tell up-to-date users to upgrade, or strand new clients whenever the
+/// node fleet lags, which is the normal state during a client-first rollout.
 #[must_use]
-pub const fn settlement_version_is_supported(version: u32) -> bool {
-    version >= MIN_SUPPORTED_SETTLEMENT_VERSION
+pub const fn settlement_compatibility(client_version: u32) -> SettlementCompatibility {
+    if client_version < MIN_SUPPORTED_SETTLEMENT_VERSION {
+        SettlementCompatibility::ClientTooOld
+    } else if client_version > CURRENT_SETTLEMENT_VERSION {
+        SettlementCompatibility::NodeTooOld
+    } else {
+        SettlementCompatibility::Compatible
+    }
 }
 
 /// Number of nodes in a Kademlia close group.
@@ -533,6 +576,21 @@ pub enum ProtocolError {
         /// Oldest settlement version this node will quote for.
         min_settlement_version: u32,
     },
+    /// This node settles under older rules than the client, so it declined to
+    /// quote rather than promise to accept a payment it may not recognise.
+    ///
+    /// The mirror image of [`Self::ClientUpdateRequired`], and deliberately a
+    /// separate variant: it is not a verdict about the client, and a client
+    /// that receives it should quietly use a different storer rather than tell
+    /// its user anything. During a client-first rollout most of the fleet is
+    /// briefly in this state, so treating it as a client fault would strand
+    /// every up-to-date user.
+    StorerUpdateRequired {
+        /// Settlement version the client declared.
+        client_settlement_version: u32,
+        /// Newest settlement version this node understands.
+        node_settlement_version: u32,
+    },
 }
 
 impl std::fmt::Display for ProtocolError {
@@ -565,6 +623,15 @@ impl std::fmt::Display for ProtocolError {
                 f,
                 "{}",
                 client_update_required_message(*client_settlement_version, *min_settlement_version)
+            ),
+            Self::StorerUpdateRequired {
+                client_settlement_version,
+                node_settlement_version,
+            } => write!(
+                f,
+                "this node settles under version {node_settlement_version} and cannot \
+                 promise to accept a version {client_settlement_version} payment, so it \
+                 issued no quote. Nothing was charged; use a different storer."
             ),
         }
     }
@@ -964,6 +1031,15 @@ mod tests {
             .copied(),
             Some(9),
         );
+        assert_eq!(
+            encode(&ProtocolError::StorerUpdateRequired {
+                client_settlement_version: 2,
+                node_settlement_version: 1,
+            })
+            .first()
+            .copied(),
+            Some(10),
+        );
     }
 
     #[test]
@@ -1013,21 +1089,75 @@ mod tests {
     }
 
     #[test]
-    fn settlement_gate_accepts_current_and_refuses_anything_older() {
-        assert!(settlement_version_is_supported(CURRENT_SETTLEMENT_VERSION));
-        assert!(settlement_version_is_supported(
-            MIN_SUPPORTED_SETTLEMENT_VERSION
-        ));
-        // A future client settles under rules this build has never heard of.
-        // It is not this node's place to refuse it: the storer verifies the
-        // payment it actually receives, and refusing here would let an old
-        // node veto a newer rule set.
-        assert!(settlement_version_is_supported(
-            CURRENT_SETTLEMENT_VERSION.saturating_add(1)
-        ));
-        assert!(!settlement_version_is_supported(
-            MIN_SUPPORTED_SETTLEMENT_VERSION.saturating_sub(1)
-        ));
+    fn settlement_compatibility_is_bounded_at_both_ends() {
+        assert_eq!(
+            settlement_compatibility(CURRENT_SETTLEMENT_VERSION),
+            SettlementCompatibility::Compatible,
+        );
+        // The lower bound is inclusive: the oldest version still served is
+        // served, not refused.
+        assert_eq!(
+            settlement_compatibility(MIN_SUPPORTED_SETTLEMENT_VERSION),
+            SettlementCompatibility::Compatible,
+        );
+        assert_eq!(
+            settlement_compatibility(MIN_SUPPORTED_SETTLEMENT_VERSION.saturating_sub(1)),
+            SettlementCompatibility::ClientTooOld,
+        );
+    }
+
+    /// The correction this replaced an earlier revision for. Serving a client
+    /// whose settlement rules this build does not know means promising to
+    /// accept a payment it may reject, and by the time it rejects, the client
+    /// has settled on-chain and cannot be refunded. Only monotonic increases
+    /// are safe to wave through, and nothing here can tell whether the next
+    /// change is one.
+    #[test]
+    fn a_newer_settlement_version_is_refused_rather_than_assumed_compatible() {
+        assert_eq!(
+            settlement_compatibility(CURRENT_SETTLEMENT_VERSION.saturating_add(1)),
+            SettlementCompatibility::NodeTooOld,
+        );
+    }
+
+    /// The two refusals must stay distinct on the wire. One tells a user to
+    /// upgrade; the other tells a client to pick a different peer and say
+    /// nothing. Rendering them alike would strand every up-to-date user during
+    /// a client-first rollout, when most of the fleet is briefly the old side.
+    #[test]
+    fn the_two_refusals_do_not_blame_the_same_party() {
+        let client_at_fault = ProtocolError::ClientUpdateRequired {
+            client_settlement_version: 0,
+            min_settlement_version: 1,
+        }
+        .to_string();
+        let node_at_fault = ProtocolError::StorerUpdateRequired {
+            client_settlement_version: 2,
+            node_settlement_version: 1,
+        }
+        .to_string();
+
+        assert!(
+            client_at_fault.contains("your client is too old"),
+            "{client_at_fault}"
+        );
+        assert!(
+            !node_at_fault.contains("your client is too old"),
+            "{node_at_fault}"
+        );
+        assert!(
+            node_at_fault.contains("use a different storer"),
+            "{node_at_fault}"
+        );
+        // Neither costs the user anything, and both must say so.
+        assert!(
+            client_at_fault.contains("nothing was charged"),
+            "{client_at_fault}"
+        );
+        assert!(
+            node_at_fault.contains("Nothing was charged"),
+            "{node_at_fault}"
+        );
     }
 
     /// The rejection exists to get a user unstuck, so the wording is part of

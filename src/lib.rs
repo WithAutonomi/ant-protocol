@@ -54,13 +54,14 @@ pub mod payment;
 // =============================================================================
 
 pub use chunk::{
-    client_update_required_message, settlement_version_is_supported, ChunkGetRequest,
-    ChunkGetResponse, ChunkMessage, ChunkMessageBody, ChunkPutRequest, ChunkPutResponse,
-    ChunkQuoteRequest, ChunkQuoteRequestV2, ChunkQuoteResponse, MerkleCandidateQuoteRequest,
-    MerkleCandidateQuoteRequestV2, MerkleCandidateQuoteResponse, ProtocolError, XorName,
-    CHUNK_PROTOCOL_ID, CLOSE_GROUP_MAJORITY, CLOSE_GROUP_SIZE, CURRENT_SETTLEMENT_VERSION,
-    DATA_TYPE_CHUNK, MAX_CHUNK_SIZE, MAX_WIRE_MESSAGE_SIZE, MIN_SUPPORTED_SETTLEMENT_VERSION,
-    PROOF_TAG_MERKLE, PROOF_TAG_SINGLE_NODE, PROTOCOL_VERSION, XORNAME_LEN,
+    client_update_required_message, settlement_compatibility, ChunkGetRequest, ChunkGetResponse,
+    ChunkMessage, ChunkMessageBody, ChunkPutRequest, ChunkPutResponse, ChunkQuoteRequest,
+    ChunkQuoteRequestV2, ChunkQuoteResponse, MerkleCandidateQuoteRequest,
+    MerkleCandidateQuoteRequestV2, MerkleCandidateQuoteResponse, ProtocolError,
+    SettlementCompatibility, XorName, CHUNK_PROTOCOL_ID, CLOSE_GROUP_MAJORITY, CLOSE_GROUP_SIZE,
+    CURRENT_SETTLEMENT_VERSION, DATA_TYPE_CHUNK, MAX_CHUNK_SIZE, MAX_WIRE_MESSAGE_SIZE,
+    MIN_SUPPORTED_SETTLEMENT_VERSION, PROOF_TAG_MERKLE, PROOF_TAG_SINGLE_NODE, PROTOCOL_VERSION,
+    XORNAME_LEN,
 };
 pub use chunk_protocol::send_and_await_chunk_response;
 pub use data_types::{compute_address, peer_id_to_xor_name, xor_distance, ChunkStats, DataChunk};

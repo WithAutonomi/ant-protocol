@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ProtocolError::ClientUpdateRequired` and `client_update_required_message`,
   which tell the user their client is too old, that nothing was charged, and
   how to upgrade.
+- `ProtocolError::StorerUpdateRequired`, the mirror image: the storer is the
+  old side and declined rather than promise to accept a payment it may not
+  recognise. Kept a separate variant because the client should quietly use a
+  different peer rather than tell its user anything, which is the normal state
+  during a client-first rollout.
+- `settlement_compatibility` and `SettlementCompatibility` replace the earlier
+  `settlement_version_is_supported`. The range is now bounded at **both** ends.
+  Accepting anything at or above the minimum is only safe when a settlement
+  change raises what is paid, as ADR-0008's 3x did; a change that redefines the
+  median rule or the payable field produces a payment an older verifier
+  rejects, after the client has already settled on-chain and can no longer be
+  refunded.
 
 Additive only: both message variants and the error variant are appended, so
 every existing discriminant keeps its wire value and peers built against
