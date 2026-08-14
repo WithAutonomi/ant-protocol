@@ -981,6 +981,35 @@ mod tests {
             6,
         );
 
+        // Responses carry the same obligation as requests: a peer decoding a
+        // reply reads the same discriminant space, so pinning only the request
+        // half would let a response variant be reordered without any test
+        // noticing.
+        assert_eq!(
+            wire_discriminant(ChunkMessageBody::PutResponse(ChunkPutResponse::Success {
+                address
+            })),
+            1,
+        );
+        assert_eq!(
+            wire_discriminant(ChunkMessageBody::GetResponse(ChunkGetResponse::NotFound {
+                address
+            })),
+            3,
+        );
+        assert_eq!(
+            wire_discriminant(ChunkMessageBody::QuoteResponse(ChunkQuoteResponse::Error(
+                ProtocolError::Internal(String::new())
+            ))),
+            5,
+        );
+        assert_eq!(
+            wire_discriminant(ChunkMessageBody::MerkleCandidateQuoteResponse(
+                MerkleCandidateQuoteResponse::Error(ProtocolError::Internal(String::new()))
+            )),
+            7,
+        );
+
         // The new variants take the next free indices, above everything an
         // older peer knows, so it rejects them as unknown rather than
         // misreading a variant it does know.
@@ -1009,6 +1038,51 @@ mod tests {
                 .first()
                 .copied(),
             Some(0),
+        );
+        assert_eq!(
+            encode(&ProtocolError::DeserializationFailed(String::new()))
+                .first()
+                .copied(),
+            Some(1),
+        );
+        assert_eq!(
+            encode(&ProtocolError::MessageTooLarge {
+                size: 0,
+                max_size: 0
+            })
+            .first()
+            .copied(),
+            Some(2),
+        );
+        assert_eq!(
+            encode(&ProtocolError::ChunkTooLarge {
+                size: 0,
+                max_size: 0
+            })
+            .first()
+            .copied(),
+            Some(3),
+        );
+        assert_eq!(
+            encode(&ProtocolError::AddressMismatch {
+                expected: [0u8; 32],
+                actual: [0u8; 32]
+            })
+            .first()
+            .copied(),
+            Some(4),
+        );
+        assert_eq!(
+            encode(&ProtocolError::StorageFailed(String::new()))
+                .first()
+                .copied(),
+            Some(5),
+        );
+        assert_eq!(
+            encode(&ProtocolError::PaymentFailed(String::new()))
+                .first()
+                .copied(),
+            Some(6),
         );
         assert_eq!(
             encode(&ProtocolError::QuoteFailed(String::new()))
