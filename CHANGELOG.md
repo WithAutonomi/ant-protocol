@@ -5,6 +5,16 @@ All notable changes to `ant-protocol` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.4.0]
+
+### Added
+- Re-export `evmlib::merkle_batch_payment::{MerkleTreePayment, MAX_TREES_PER_PAYMENT, MERKLE_TREES_PER_PAYMENT}`
+  under `ant_protocol::evm`, so clients can drive the batched `payForMerkleTrees`
+  payment path (one wallet transaction for up to `MERKLE_TREES_PER_PAYMENT`
+  merkle trees) without a direct `evmlib` dependency. Client-only surface, same
+  as the existing `Wallet` re-export; requires the `evmlib` release carrying
+  WithAutonomi/evmlib#15.
+
 ## [2.3.0]
 
 ### Changed

@@ -92,7 +92,9 @@ pub use payment::{
 /// same `evmlib` major version.
 pub mod evm {
     pub use evmlib::common::{Address, Amount, QuoteHash, TxHash, U256};
-    pub use evmlib::merkle_batch_payment::PoolCommitment;
+    pub use evmlib::merkle_batch_payment::{
+        MerkleTreePayment, PoolCommitment, MAX_TREES_PER_PAYMENT, MERKLE_TREES_PER_PAYMENT,
+    };
     pub use evmlib::merkle_payments::{
         MerklePaymentCandidateNode, MerklePaymentCandidatePool, MerklePaymentProof,
         MerklePaymentVerificationError, MerkleTree, MidpointProof, CANDIDATES_PER_POOL, MAX_LEAVES,
