@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "2.3.2"
+version = "2.4.0"
 dependencies = [
  "alloy",
  "blake3",
@@ -2195,8 +2195,7 @@ dependencies = [
 [[package]]
 name = "evmlib"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83822a94669e50793b583817ed2681b67d2e7059bae652784d34a6ee40fbfd37"
+source = "git+https://github.com/WithAutonomi/evmlib?branch=feat/pay-for-merkle-trees#36d1bd4dfb81b919efa67ee740cdce117a1c9442"
 dependencies = [
  "alloy",
  "ant-merkle",
