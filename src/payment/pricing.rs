@@ -22,6 +22,7 @@
 //! | K         | 0.03515625 ANT| Quadratic coefficient                           |
 //! | D         | 6000          | Lower stable boundary (records stored)          |
 
+#[cfg(feature = "native")]
 use evmlib::common::Amount;
 
 /// Lower stable boundary of the quadratic curve, in records stored.
@@ -41,6 +42,7 @@ const PRICE_BASELINE_WEI: u128 = 3_906_250_000_000_000;
 const PRICE_COEFFICIENT_WEI: u128 = 35_156_250_000_000_000;
 
 /// Price increment per squared record after simplifying `PRICE_COEFFICIENT_WEI / DIVISOR_SQUARED`.
+#[cfg(feature = "native")]
 const PRICE_PER_RECORD_SQUARED_WEI: u128 = PRICE_COEFFICIENT_WEI / DIVISOR_SQUARED;
 
 /// Derive the quoted record count from a quote price.
@@ -54,6 +56,7 @@ const PRICE_PER_RECORD_SQUARED_WEI: u128 = PRICE_COEFFICIENT_WEI / DIVISOR_SQUAR
 /// pre-auth crash vector. Saturating leaves the delta check to reject the
 /// quote as out-of-range without aborting the process.
 #[must_use]
+#[cfg(feature = "native")]
 pub fn derive_records_stored_from_price(price: Amount) -> u64 {
     let baseline = Amount::from(PRICE_BASELINE_WEI);
     if price <= baseline {
@@ -80,6 +83,7 @@ pub fn derive_records_stored_from_price(price: Amount) -> u64 {
 /// where `BASELINE = 0.00390625 ANT`, `K = 0.03515625 ANT`, and `D = 6000`.
 /// U256 arithmetic prevents overflow for large record counts.
 #[must_use]
+#[cfg(feature = "native")]
 pub fn calculate_price(close_records_stored: usize) -> Amount {
     let n = Amount::from(close_records_stored);
     let n_squared = n.saturating_mul(n);
@@ -88,7 +92,19 @@ pub fn calculate_price(close_records_stored: usize) -> Amount {
     Amount::from(PRICE_BASELINE_WEI).saturating_add(quadratic_wei)
 }
 
-#[cfg(test)]
+/// Calculate storage price in wei using only portable integer primitives.
+///
+/// The protocol limits committed key counts to `u32`, for which every
+/// intermediate in the pricing formula fits in `u128`. Browser clients use
+/// this function to validate the exact same curve as native nodes without
+/// depending on EVM integer types.
+#[must_use]
+pub fn calculate_price_wei(close_records_stored: u32) -> u128 {
+    let n = u128::from(close_records_stored);
+    PRICE_BASELINE_WEI + n.saturating_mul(n).saturating_mul(PRICE_COEFFICIENT_WEI) / DIVISOR_SQUARED
+}
+
+#[cfg(all(test, feature = "native"))]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
@@ -187,6 +203,16 @@ mod tests {
         let price1 = calculate_price(12000);
         let price2 = calculate_price(12000);
         assert_eq!(price1, price2);
+    }
+
+    #[test]
+    fn portable_u128_curve_matches_native_amount_curve() {
+        for records in [0_u32, 1, 23, 6_000, 12_000, 1_000_000, u32::MAX] {
+            assert_eq!(
+                Amount::from(calculate_price_wei(records)),
+                calculate_price(records as usize)
+            );
+        }
     }
 
     #[test]

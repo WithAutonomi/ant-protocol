@@ -12,6 +12,7 @@ ML-DSA-65 signing scheme.
 | Module | Contents |
 |---|---|
 | `chunk` | Chunk protocol messages (`ChunkMessage`, PUT/GET/Quote/MerkleCandidateQuote request+response), protocol constants (`CHUNK_PROTOCOL_ID`, `MAX_CHUNK_SIZE`, `MAX_WIRE_MESSAGE_SIZE`, `CLOSE_GROUP_SIZE`, `CLOSE_GROUP_MAJORITY`), `ProtocolError`, proof type tags |
+| `crypto` | Cross-platform ML-DSA-65 verification with native and portable backends |
 | `data_types` | Address helpers — `compute_address` (BLAKE3), `xor_distance`, `peer_id_to_xor_name` — and `DataChunk` |
 | `chunk_protocol` | `send_and_await_chunk_response`: the subscribe/send/poll helper used to exchange chunk messages on a `P2PNode` |
 | `payment` | On-wire payment artifacts: `PaymentProof`, `SingleNodePayment` (with `pay` and `verify`), and ML-DSA-65 signature verification for quotes and merkle candidates |
@@ -39,7 +40,20 @@ ant-protocol = "2"
 
 | Feature | Default | Description |
 |---|---|---|
-| `logging` | yes | Re-exports the `tracing` macros. Disable with `--no-default-features` for minimum-overhead builds; the macros then expand to no-ops. |
+| `native` | yes | Enables EVM payments, Saorsa transport/PQC re-exports, and the Tokio request helper. |
+| `logging` | yes | Re-exports the `tracing` macros; without it the macros expand to no-ops. |
+| `portable` | no | Enables verification-only FIPS-204 crypto without Tokio, EVM, Saorsa transport, or `saorsa-pqc`; intended for browser/WASM and other portable clients. |
+
+For a browser build:
+
+```toml
+[dependencies]
+ant-protocol = { version = "2", default-features = false, features = ["portable"] }
+```
+
+The portable surface includes chunk wire types, address helpers, storage
+commitments, canonical commitment/quote signing bytes, quote hashes, the `u128`
+pricing curve, and ML-DSA-65 verification.
 
 ## Compatibility
 
