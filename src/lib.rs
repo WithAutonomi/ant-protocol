@@ -53,6 +53,7 @@ pub mod devnet_manifest;
 pub mod error;
 pub mod logging;
 pub mod payment;
+pub mod web_rtc;
 
 // =============================================================================
 // Public surface re-exports
