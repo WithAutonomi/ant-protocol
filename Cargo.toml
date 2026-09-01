@@ -28,6 +28,13 @@ evmlib = { version = "0.9.0", optional = true }
 # Content addressing (BLAKE3)
 blake3 = "1"
 
+# Browser WebRTC application-session protection. The complete handshake and
+# record layer live here so native nodes and WASM clients share one wire
+# implementation instead of duplicating cryptography in JavaScript.
+chacha20poly1305 = { version = "0.10.1", default-features = false, features = ["alloc"], optional = true }
+fips203 = { version = "0.4.3", default-features = false, features = ["default-rng", "ml-kem-768"], optional = true }
+zeroize = { version = "1.8", default-features = false, optional = true }
+
 # Async runtime (used by send_and_await_chunk_response)
 tokio = { version = "1.35", features = ["sync", "time", "rt"], optional = true }
 
@@ -63,11 +70,16 @@ tokio = { version = "1.35", features = ["full"] }
 # using `--no-default-features --features portable`.
 default = ["native", "logging"]
 # Native networking, EVM payment, and signing APIs.
-native = ["dep:evmlib", "dep:rmp-serde", "dep:saorsa-core", "dep:saorsa-pqc", "dep:tokio"]
+native = ["dep:chacha20poly1305", "dep:evmlib", "dep:fips203", "dep:rmp-serde", "dep:saorsa-core", "dep:saorsa-pqc", "dep:tokio", "dep:zeroize"]
 # Cross-platform verification backend used by browser/WASM clients.
-portable = ["dep:fips204"]
+portable = ["dep:chacha20poly1305", "dep:fips203", "dep:fips204", "dep:zeroize"]
 # Enable `tracing` macros inside the crate.
 logging = ["dep:tracing"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# fips203's default RNG reaches getrandom 0.2. Enable its Web Crypto backend
+# when ant-protocol is built directly for a browser target.
+getrandom = { version = "0.2", features = ["js"] }
 
 [lints.rust]
 unsafe_code = "deny"
