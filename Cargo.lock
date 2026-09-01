@@ -799,8 +799,11 @@ dependencies = [
  "alloy",
  "blake3",
  "bytes",
+ "chacha20poly1305",
  "evmlib",
+ "fips203",
  "fips204",
+ "getrandom 0.2.17",
  "hex",
  "postcard",
  "rand 0.8.6",
@@ -814,6 +817,7 @@ dependencies = [
  "tracing",
  "url",
  "xor_name",
+ "zeroize",
 ]
 
 [[package]]

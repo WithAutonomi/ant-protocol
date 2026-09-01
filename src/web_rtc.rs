@@ -8,6 +8,15 @@
 
 use std::time::Duration;
 
+#[cfg(any(feature = "native", feature = "portable"))]
+mod session;
+#[cfg(any(feature = "native", feature = "portable"))]
+pub use session::{
+    accept_pq_session, decode_pq_frame, encode_pq_frame, pq_frame_length, PqClientHandshake,
+    PqSession, PqSessionError, PQ_CLIENT_HELLO_BYTES, PQ_ENCRYPTED_OVERHEAD_BYTES,
+    PQ_FRAME_PREFIX_BYTES, PQ_SERVER_ACCEPT_BYTES,
+};
+
 /// Time allowed for a header-only WebRTC Direct request.
 pub const WEBRTC_TRANSFER_BASE_TIMEOUT: Duration = Duration::from_secs(10);
 
