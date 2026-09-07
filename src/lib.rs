@@ -60,7 +60,10 @@ pub use chunk::{
     CLOSE_GROUP_SIZE, DATA_TYPE_CHUNK, MAX_CHUNK_SIZE, MAX_WIRE_MESSAGE_SIZE, PROOF_TAG_MERKLE,
     PROOF_TAG_SINGLE_NODE, PROTOCOL_VERSION, XORNAME_LEN,
 };
-pub use chunk_protocol::send_and_await_chunk_response;
+pub use chunk_protocol::{
+    send_and_await_chunk_response, send_and_await_chunk_response_with_metadata,
+    ChunkProtocolResponse,
+};
 pub use data_types::{compute_address, peer_id_to_xor_name, xor_distance, ChunkStats, DataChunk};
 pub use devnet_manifest::{DevnetEvmInfo, DevnetManifest};
 pub use error::{Error, Result};
@@ -134,7 +137,7 @@ pub mod transport {
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::{
         DHTNode, IPDiversityConfig, MlDsa65, MultiAddr, NodeConfig as CoreNodeConfig, NodeMode,
-        P2PEvent, P2PNode, ResponderView, WitnessedCloseGroup,
+        P2PEvent, P2PNode, PeerRouteKind, ResponderView, WitnessedCloseGroup,
     };
 }
 
