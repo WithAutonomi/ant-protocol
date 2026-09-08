@@ -42,7 +42,7 @@ pub struct SingleNodePayment {
 }
 
 /// Information about a single quote payment
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct QuotePaymentInfo {
     /// The quote hash
     pub quote_hash: QuoteHash,
