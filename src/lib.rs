@@ -142,10 +142,12 @@ pub mod transport {
         DEFAULT_ALPHA_VALUE, DEFAULT_K_VALUE, ITERATION_GRACE_TIMEOUT_SECS,
     };
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
+    pub use saorsa_core::signed_address;
     pub use saorsa_core::{
         collect_after_first_with_grace, run_iterative_lookup, xor_distance, AddressType, DHTNode,
-        IterativeLookup, LookupConfig, LookupKey, LookupNode, LookupQuery, LookupQueryOutcome,
-        LookupRunError, LookupTermination, MlDsa65, MultiAddr, ResponderView, WitnessedCloseGroup,
+        IterativeLookup, KnownReachability, LookupConfig, LookupKey, LookupNode, LookupQuery,
+        LookupQueryOutcome, LookupRunError, LookupTermination, MlDsa65, MultiAddr, ResponderView,
+        TransportAddressRecord, WitnessedCloseGroup,
     };
     #[cfg(feature = "native")]
     pub use saorsa_core::{
