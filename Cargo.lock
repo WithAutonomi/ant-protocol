@@ -2129,7 +2129,7 @@ dependencies = [
 [[package]]
 name = "evmlib"
 version = "0.9.1"
-source = "git+https://github.com/WithAutonomi/evmlib?rev=5fc1329293ea9c45e364264db4e57f3179412ca9#5fc1329293ea9c45e364264db4e57f3179412ca9"
+source = "git+https://github.com/WithAutonomi/evmlib?rev=c80b7c7aee11bb62503b00d8b41e08da1a13039d#c80b7c7aee11bb62503b00d8b41e08da1a13039d"
 dependencies = [
  "alloy",
  "ant-merkle",
