@@ -61,3 +61,22 @@ Licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
+
+## Native and browser features
+
+The default `native` feature retains the native node transport, wallet, and
+local testnet API. With `default-features = false`, the same chunk wire types,
+quotes, proof serialization, pricing, commitments, signature verification,
+saorsa-core identities/peer records, and lookup APIs compile for browser WASM.
+Enable `rpc` for HTTP wallet/contract operations using browser Fetch. Native
+socket event handling and local process management require `native`.
+
+```sh
+cargo check --lib --no-default-features --target wasm32-unknown-unknown
+cargo check --lib --no-default-features --features rpc --target wasm32-unknown-unknown
+```
+
+Pre-release dependency revisions are pinned to the coordinated web-support
+branches. The earlier experimental browser crypto/session surface on this
+branch is superseded by shared saorsa-pqc and saorsa-webrtc APIs; application
+messages use the ordinary ant-protocol types on both targets.
