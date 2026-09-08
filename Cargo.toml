@@ -21,9 +21,9 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "3b4ce11930fcf59361120f20ffb47e3810daa674", default-features = false }
+saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "4eb17758eceb0c709cee0143d161ea777870d1cd", default-features = false }
 saorsa-pqc = { version = "0.5", git = "https://github.com/saorsa-labs/saorsa-pqc", rev = "6d57e9dd73d537182fe85b0050e809a224f21154", default-features = false }
-evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "5767d6ed366cc547a163b4a1f118e36cb9fbbb2b", default-features = false }
+evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "545c6fa48cb05fecc411bed2d9d0a47d82ede6d1", default-features = false }
 
 # Content addressing (BLAKE3)
 blake3 = "1"

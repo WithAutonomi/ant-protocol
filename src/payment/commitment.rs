@@ -103,7 +103,7 @@ pub fn commitment_hash(c: &StorageCommitment) -> Option<[u8; 32]> {
 /// `sender_public_key` is length-prefixed and included so an adversary cannot
 /// keep the body and re-sign under a different key.
 #[must_use]
-pub fn storage_commitment_bytes_for_signing(
+pub fn commitment_signed_payload(
     root: &[u8; 32],
     key_count: u32,
     sender_peer_id: &[u8; 32],
