@@ -4332,7 +4332,7 @@ dependencies = [
 [[package]]
 name = "saorsa-core"
 version = "0.27.3"
-source = "git+https://github.com/WithAutonomi/saorsa-core?rev=c19a50e269ca1e66aceeb8158bcb009ed1e1bc57#c19a50e269ca1e66aceeb8158bcb009ed1e1bc57"
+source = "git+https://github.com/WithAutonomi/saorsa-core?rev=17264c91b7d2668cbbf4247942c57e1132643e43#17264c91b7d2668cbbf4247942c57e1132643e43"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4348,7 +4348,6 @@ dependencies = [
  "parking_lot",
  "postcard",
  "rand 0.8.6",
- "saorsa-dht-lookup",
  "saorsa-pqc",
  "saorsa-transport",
  "serde",
@@ -4360,15 +4359,6 @@ dependencies = [
  "tracing",
  "uuid",
  "wyz",
-]
-
-[[package]]
-name = "saorsa-dht-lookup"
-version = "0.1.0"
-source = "git+https://github.com/WithAutonomi/saorsa-core?rev=c19a50e269ca1e66aceeb8158bcb009ed1e1bc57#c19a50e269ca1e66aceeb8158bcb009ed1e1bc57"
-dependencies = [
- "futures-core",
- "futures-util",
 ]
 
 [[package]]
