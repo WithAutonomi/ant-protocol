@@ -12,9 +12,9 @@ use crate::chunk::XorName;
 use crate::logging::debug;
 use evmlib::merkle_payments::MerklePaymentCandidateNode;
 use evmlib::PaymentQuote;
-use saorsa_core::MlDsa65;
 use saorsa_pqc::pqc::types::{MlDsaPublicKey, MlDsaSignature};
 use saorsa_pqc::pqc::MlDsaOperations;
+use saorsa_pqc::MlDsa65;
 
 /// Verify that a payment quote's content address matches the expected address.
 ///

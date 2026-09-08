@@ -15,9 +15,12 @@
 
 use crate::chunk::CLOSE_GROUP_SIZE;
 use crate::error::{Error, Result};
+#[cfg(feature = "rpc")]
 use crate::logging::info;
 use evmlib::common::{Amount, QuoteHash};
+#[cfg(feature = "rpc")]
 use evmlib::wallet::Wallet;
+#[cfg(feature = "rpc")]
 use evmlib::Network as EvmNetwork;
 use evmlib::PaymentQuote;
 use evmlib::RewardsAddress;
@@ -138,6 +141,7 @@ impl SingleNodePayment {
     /// # Errors
     ///
     /// Returns an error if the payment transaction fails.
+    #[cfg(feature = "rpc")]
     pub async fn pay(&self, wallet: &Wallet) -> Result<Vec<evmlib::common::TxHash>> {
         // Build quote payments: (QuoteHash, RewardsAddress, Amount)
         let quote_payments: Vec<_> = self
@@ -197,6 +201,7 @@ impl SingleNodePayment {
     ///
     /// Returns an error if the on-chain lookup fails or none of the
     /// median-priced quotes were paid at least 3× the median price.
+    #[cfg(feature = "rpc")]
     pub async fn verify(&self, network: &EvmNetwork) -> Result<Amount> {
         let median = self.quotes.get(MEDIAN_INDEX).ok_or_else(|| {
             Error::Payment(format!(
@@ -260,13 +265,20 @@ impl SingleNodePayment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "native")]
     use alloy::node_bindings::{Anvil, AnvilInstance};
+    #[cfg(feature = "native")]
     use evmlib::testnet::{deploy_network_token_contract, deploy_payment_vault_contract, Testnet};
+    #[cfg(feature = "native")]
     use evmlib::transaction_config::TransactionConfig;
+    #[cfg(feature = "native")]
     use evmlib::utils::{dummy_address, dummy_hash};
+    #[cfg(feature = "rpc")]
     use evmlib::wallet::Wallet;
+    #[cfg(feature = "native")]
     use serial_test::serial;
     use std::time::SystemTime;
+    #[cfg(feature = "native")]
     use url::Url;
     use xor_name::XorName;
 
@@ -289,6 +301,7 @@ mod tests {
     /// This helper uses a 60-second timeout and random port assignment
     /// to handle slower CI environments and parallel test execution.
     #[allow(clippy::expect_used, clippy::panic)]
+    #[cfg(feature = "native")]
     fn start_node_with_timeout() -> (AnvilInstance, Url) {
         const ANVIL_TIMEOUT_MS: u64 = 60_000; // 60 seconds for CI
 
@@ -308,6 +321,7 @@ mod tests {
     }
 
     /// Test: Standard `CLOSE_GROUP_SIZE`-quote payment verification (autonomi baseline)
+    #[cfg(feature = "native")]
     #[tokio::test]
     #[serial]
     #[allow(clippy::expect_used)]
@@ -377,6 +391,7 @@ mod tests {
     }
 
     /// Test: `SingleNode` payment strategy (1 real + N-1 dummy payments)
+    #[cfg(feature = "native")]
     #[tokio::test]
     #[serial]
     #[allow(clippy::expect_used)]
@@ -632,6 +647,7 @@ mod tests {
     ///
     /// Uses a testnet only so `network` is a real `EvmNetwork`; the test
     /// never reaches the RPC call because the zero-price guard short-circuits.
+    #[cfg(feature = "native")]
     #[tokio::test]
     #[serial]
     #[allow(clippy::expect_used)]
@@ -662,6 +678,7 @@ mod tests {
     }
 
     /// Test: Complete `SingleNode` flow with real contract prices
+    #[cfg(feature = "native")]
     #[tokio::test]
     #[serial]
     async fn test_single_node_with_real_prices() -> Result<()> {
