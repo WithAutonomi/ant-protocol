@@ -1,6 +1,6 @@
 [package]
 name = "ant-protocol"
-version = "2.3.5"
+version = "2.4.0-rc.1"
 edition = "2021"
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Wire protocol for the Autonomi decentralized network (WithAutonomi fork)"
@@ -23,7 +23,7 @@ path = "src/lib.rs"
 # breaking change for both downstream crates.
 # Temporary stacked-PR dependency; replace with the released version from
 # WithAutonomi/saorsa-core#162 before merging.
-saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core.git", branch = "feat/v2-903-download-route-diagnostics" }
+saorsa-core = { git = "https://github.com/WithAutonomi/saorsa-core", branch = "rc-2026.9.2" }
 saorsa-pqc = "0.5"
 evmlib = "0.9.1"
 
