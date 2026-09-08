@@ -23,7 +23,7 @@ path = "src/lib.rs"
 # breaking change for both downstream crates.
 saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "acd4a50e668c4da59880439ca7d32f7484efd39b", default-features = false }
 saorsa-pqc = { version = "0.5", git = "https://github.com/saorsa-labs/saorsa-pqc", rev = "6d57e9dd73d537182fe85b0050e809a224f21154", default-features = false }
-evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "545c6fa48cb05fecc411bed2d9d0a47d82ede6d1", default-features = false }
+evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "5fc1329293ea9c45e364264db4e57f3179412ca9", default-features = false }
 
 # Content addressing (BLAKE3)
 blake3 = "1"
