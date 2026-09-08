@@ -138,6 +138,9 @@ pub mod evm {
 /// direct `saorsa-core` dependency.
 pub mod transport {
     pub use saorsa_core::client_routing;
+    pub use saorsa_core::dht_lookup::{
+        DEFAULT_ALPHA_VALUE, DEFAULT_K_VALUE, ITERATION_GRACE_TIMEOUT_SECS,
+    };
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::{
         collect_after_first_with_grace, run_iterative_lookup, xor_distance, AddressType, DHTNode,
