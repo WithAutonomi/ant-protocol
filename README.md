@@ -78,5 +78,5 @@ cargo check --lib --no-default-features --features rpc --target wasm32-unknown-u
 
 Pre-release dependency revisions are pinned to the coordinated web-support
 branches. The earlier experimental browser crypto/session surface on this
-branch is superseded by shared saorsa-pqc and saorsa-webrtc APIs; application
+branch is superseded by shared saorsa-pqc and saorsa_transport::webrtc APIs; application
 messages use the ordinary ant-protocol types on both targets.
