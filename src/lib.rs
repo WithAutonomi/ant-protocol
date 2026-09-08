@@ -152,6 +152,7 @@ pub mod evm {
 /// direct `saorsa-core` dependency.
 #[cfg(feature = "native")]
 pub mod transport {
+    pub use saorsa_core::client_routing;
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::{
         collect_after_first_with_grace, run_iterative_lookup, xor_distance, AddressType, DHTNode,
