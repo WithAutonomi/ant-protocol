@@ -137,6 +137,7 @@ pub mod evm {
 /// Use `ant_protocol::transport::…` in downstream crates instead of a
 /// direct `saorsa-core` dependency.
 pub mod transport {
+    pub use saorsa_core::client_routing;
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::{
         collect_after_first_with_grace, run_iterative_lookup, xor_distance, AddressType, DHTNode,
