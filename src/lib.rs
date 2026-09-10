@@ -137,9 +137,13 @@ pub mod evm {
 /// Use `ant_protocol::transport::…` in downstream crates instead of a
 /// direct `saorsa-core` dependency.
 pub mod transport {
+    /// Browser RPC capability requiring owner-signed V2 address records.
+    /// This does not select native DHT protocols; native peers send both versions.
+    pub const ADDRESS_V2_CAPABILITY: &str = "addr-v2";
+
     pub use saorsa_core::client_routing;
     pub use saorsa_core::dht_lookup::{
-        DEFAULT_ALPHA_VALUE, DEFAULT_K_VALUE, ITERATION_GRACE_TIMEOUT_SECS,
+        DEFAULT_ALPHA_VALUE, DEFAULT_K_VALUE, ITERATION_GRACE_TIMEOUT_SECS, LOOKUP_TIMEOUT_SECS,
     };
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
     pub use saorsa_core::signed_address;
