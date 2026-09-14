@@ -4,9 +4,8 @@
 //!
 //! This crate is the contract between `ant-client` and `ant-node`:
 //! wire message types, serialization, content addressing, and the
-//! pure-verification halves of the post-quantum signing scheme. The portable
-//! surface compiles for browsers without pulling in Tokio, EVM, or a native
-//! transport runtime.
+//! pure-verification halves of the post-quantum signing scheme. Both
+//! crates depend on `ant-protocol` and on nothing else from each other.
 //!
 //! ## Scope
 //!
@@ -45,15 +44,11 @@
 pub mod chunk;
 #[cfg(feature = "native")]
 pub mod chunk_protocol;
-#[cfg(any(feature = "native", feature = "portable"))]
-pub mod crypto;
 pub mod data_types;
-#[cfg(feature = "native")]
 pub mod devnet_manifest;
 pub mod error;
 pub mod logging;
 pub mod payment;
-pub mod web_rtc;
 
 // =============================================================================
 // Public surface re-exports
@@ -75,10 +70,8 @@ pub use chunk_protocol::{
     ChunkProtocolResponse,
 };
 pub use data_types::{compute_address, peer_id_to_xor_name, xor_distance, ChunkStats, DataChunk};
-#[cfg(feature = "native")]
 pub use devnet_manifest::{DevnetEvmInfo, DevnetManifest};
 pub use error::{Error, Result};
-#[cfg(feature = "native")]
 pub use payment::{
     deserialize_merkle_proof, deserialize_proof, detect_proof_type, serialize_merkle_proof,
     serialize_single_node_proof, verify_merkle_candidate_signature, verify_quote_content,
@@ -105,7 +98,6 @@ pub use payment::{
 /// Use `ant_protocol::evm::…` in downstream crates instead of a direct
 /// `evmlib` dependency. This guarantees client and node always link the
 /// same `evmlib` major version.
-#[cfg(feature = "native")]
 pub mod evm {
     pub use evmlib::common::{Address, Amount, QuoteHash, TxHash, U256};
     pub use evmlib::merkle_batch_payment::PoolCommitment;
@@ -150,7 +142,6 @@ pub mod evm {
 ///
 /// Use `ant_protocol::transport::…` in downstream crates instead of a
 /// direct `saorsa-core` dependency.
-#[cfg(feature = "native")]
 pub mod transport {
     /// Browser RPC capability requiring owner-signed V2 address records.
     /// This does not select native DHT protocols; native peers send both versions.
@@ -181,7 +172,6 @@ pub mod transport {
 ///   by the node and by this crate's own verification code.
 /// - `ant_protocol::pqc::api::*` (higher-level `api::sig::*` module) —
 ///   used by the client's binary-update signature verification.
-#[cfg(feature = "native")]
 pub mod pqc {
     /// Lower-level `pqc::*` API (types + `MlDsaOperations` trait).
     pub mod ops {

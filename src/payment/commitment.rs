@@ -17,10 +17,8 @@
 //! the client never builds or signs a commitment, it only verifies one.
 
 use blake3::Hasher;
+use saorsa_pqc::api::sig::{ml_dsa_65, MlDsaPublicKey, MlDsaSignature, MlDsaVariant};
 use serde::{Deserialize, Serialize};
-
-#[cfg(any(feature = "native", feature = "portable"))]
-use crate::crypto::verify_ml_dsa_65;
 
 /// Domain-separation tag for the commitment signature.
 ///
@@ -124,37 +122,39 @@ pub fn commitment_signed_payload(
 /// callers that need it (the client, the node) check it separately so the same
 /// function serves both the "trust the embedded key" and "bind to a peer" uses.
 #[must_use]
-#[cfg(any(feature = "native", feature = "portable"))]
 pub fn verify_commitment_signature(c: &StorageCommitment) -> bool {
-    let payload = storage_commitment_bytes_for_signing(
+    let Ok(public_key) = MlDsaPublicKey::from_bytes(MlDsaVariant::MlDsa65, &c.sender_public_key)
+    else {
+        return false;
+    };
+    let payload = commitment_signed_payload(
         &c.root,
         c.key_count,
         &c.sender_peer_id,
         &c.sender_public_key,
     );
-    verify_ml_dsa_65(
-        &c.sender_public_key,
-        &c.signature,
-        &payload,
-        DOMAIN_COMMITMENT,
-    )
+    let Ok(sig) = MlDsaSignature::from_bytes(MlDsaVariant::MlDsa65, &c.signature) else {
+        return false;
+    };
+    ml_dsa_65()
+        .verify_with_context(&public_key, &payload, &sig, DOMAIN_COMMITMENT)
+        .unwrap_or(false)
 }
 
-#[cfg(all(test, feature = "native"))]
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use saorsa_pqc::api::sig::ml_dsa_65;
 
     /// Build a genuinely-signed commitment (fresh ML-DSA-65 keypair, signed over
-    /// the exact `storage_commitment_bytes_for_signing` under
-    /// `DOMAIN_COMMITMENT`) — the same
+    /// the exact `commitment_signed_payload` under `DOMAIN_COMMITMENT`) — the same
     /// thing the node produces. Returns the commitment and the keypair's public
     /// bytes so tamper tests can key-swap.
     fn signed_commitment(root: [u8; 32], key_count: u32, peer_id: [u8; 32]) -> StorageCommitment {
         let (pk, sk) = ml_dsa_65().generate_keypair().unwrap();
         let pk_bytes = pk.to_bytes();
-        let payload = storage_commitment_bytes_for_signing(&root, key_count, &peer_id, &pk_bytes);
+        let payload = commitment_signed_payload(&root, key_count, &peer_id, &pk_bytes);
         let sig = ml_dsa_65()
             .sign_with_context(&sk, &payload, DOMAIN_COMMITMENT)
             .unwrap();

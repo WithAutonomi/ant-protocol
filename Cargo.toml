@@ -21,19 +21,12 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "a37ba86d9bf2744cefd7b756b21f798e771a1e80", default-features = false }
+saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "e1680b7b759ad337674d84920c0d283b1d99dab8", default-features = false }
 saorsa-pqc = { version = "0.5", git = "https://github.com/saorsa-labs/saorsa-pqc", rev = "6d57e9dd73d537182fe85b0050e809a224f21154", default-features = false }
 evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "c80b7c7aee11bb62503b00d8b41e08da1a13039d", default-features = false }
 
 # Content addressing (BLAKE3)
 blake3 = "1"
-
-# Browser WebRTC application-session protection. The complete handshake and
-# record layer live here so native nodes and WASM clients share one wire
-# implementation instead of duplicating cryptography in JavaScript.
-chacha20poly1305 = { version = "0.10.1", default-features = false, features = ["alloc"], optional = true }
-fips203 = { version = "0.4.3", default-features = false, features = ["default-rng", "ml-kem-768"], optional = true }
-zeroize = { version = "1.8", default-features = false, optional = true }
 
 # Async runtime (used by send_and_await_chunk_response)
 tokio = { version = "1.35", features = ["sync", "time", "rt"], optional = true }
@@ -41,17 +34,11 @@ tokio = { version = "1.35", features = ["sync", "time", "rt"], optional = true }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1.1.3", features = ["use-std"] }
-rmp-serde = { version = "1", optional = true }
+rmp-serde = "1"
 
 # Byte utilities
 bytes = { version = "1", features = ["serde"] }
 hex = "0.4"
-tiny-keccak = { version = "2", features = ["keccak"] }
-
-# Verification-only ML-DSA backend for targets where the native Saorsa stack
-# is unavailable (notably wasm32 browsers). The wrapper lives in this crate so
-# downstream protocol consumers never select crypto implementations themselves.
-fips204 = { version = "0.4.6", default-features = false, features = ["ml-dsa-65"], optional = true }
 
 # Logging (optional — behind `logging` feature flag, mirroring ant-node)
 tracing = { version = "0.1", optional = true }
@@ -65,21 +52,14 @@ serial_test = "3"
 tokio = { version = "1.35", features = ["full"] }
 
 [features]
-# Preserve the existing native API by default. Portable consumers can compile
-# the wire types and verification logic without Tokio, EVM, or Saorsa transport
-# using `--no-default-features --features portable`.
+# Default: logging enabled so downstream tests and dev builds emit diagnostics.
+# Release consumers can strip logging with `--no-default-features`.
 default = ["native", "logging"]
-# Native networking, EVM payment, and signing APIs.
-native = ["dep:chacha20poly1305", "dep:evmlib", "dep:fips203", "dep:rmp-serde", "dep:saorsa-core", "dep:saorsa-pqc", "dep:tokio", "dep:zeroize"]
-# Cross-platform verification backend used by browser/WASM clients.
-portable = ["dep:chacha20poly1305", "dep:fips203", "dep:fips204", "dep:zeroize"]
+native = ["saorsa-core/native", "evmlib/native", "rpc", "dep:tokio"]
+# Wallet/RPC operations can also run through browser fetch.
+rpc = ["evmlib/rpc"]
 # Enable `tracing` macros inside the crate.
-logging = ["dep:tracing"]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# fips203's default RNG reaches getrandom 0.2. Enable its Web Crypto backend
-# when ant-protocol is built directly for a browser target.
-getrandom = { version = "0.2", features = ["js"] }
+logging = ["tracing"]
 
 [lints.rust]
 unsafe_code = "deny"
