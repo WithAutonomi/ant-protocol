@@ -106,6 +106,8 @@ pub mod evm {
         MerklePaymentVerificationError, MerkleTree, MidpointProof, CANDIDATES_PER_POOL, MAX_LEAVES,
         MERKLE_PAYMENT_EXPIRATION,
     };
+    #[cfg(feature = "native")]
+    pub use evmlib::wallet::journal;
     #[cfg(feature = "rpc")]
     pub use evmlib::wallet::{PayForQuotesError, Wallet};
     pub use evmlib::{
