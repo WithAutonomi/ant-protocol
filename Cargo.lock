@@ -799,11 +799,7 @@ dependencies = [
  "alloy",
  "blake3",
  "bytes",
- "chacha20poly1305",
  "evmlib",
- "fips203",
- "fips204",
- "getrandom 0.2.17",
  "hex",
  "postcard",
  "rand 0.8.6",
@@ -812,12 +808,10 @@ dependencies = [
  "saorsa-pqc",
  "serde",
  "serial_test",
- "tiny-keccak",
  "tokio",
  "tracing",
  "url",
  "xor_name",
- "zeroize",
 ]
 
 [[package]]
@@ -2129,7 +2123,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2482,9 +2476,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.17"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f877e75f39e9827ec50a572dd592684ac28c029578726c85f1b2aa6ab807449"
+checksum = "6cb093c84e8bd9b188d4c4a8cb6579fc016968d14c99882163cd3ff402a4f155"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3788,7 +3782,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3801,7 +3795,7 @@ dependencies = [
  "libc",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4112,9 +4106,9 @@ dependencies = [
 
 [[package]]
 name = "ruint"
-version = "1.20.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5e99bff0393163bb25029a6af25d3d8d202ba5b5438a74d1bd8789f5c822970"
+checksum = "45caf26f647c19115bf9c453c70ffe4a4a3a6390dceebd942610584f99b8ddce"
 dependencies = [
  "alloy-rlp",
  "ark-ff 0.3.0",
@@ -4194,7 +4188,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4261,7 +4255,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4338,7 +4332,7 @@ dependencies = [
 [[package]]
 name = "saorsa-core"
 version = "0.27.3"
-source = "git+https://github.com/WithAutonomi/saorsa-core?rev=a37ba86d9bf2744cefd7b756b21f798e771a1e80#a37ba86d9bf2744cefd7b756b21f798e771a1e80"
+source = "git+https://github.com/WithAutonomi/saorsa-core?rev=e1680b7b759ad337674d84920c0d283b1d99dab8#e1680b7b759ad337674d84920c0d283b1d99dab8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4406,7 +4400,7 @@ dependencies = [
 [[package]]
 name = "saorsa-transport"
 version = "0.36.3"
-source = "git+https://github.com/WithAutonomi/saorsa-transport?rev=33c08d68e221d5d65a054f38b95af4ad11094802#33c08d68e221d5d65a054f38b95af4ad11094802"
+source = "git+https://github.com/WithAutonomi/saorsa-transport?rev=f583dd053dab331fb424b67da8600c4259b2c9dc#f583dd053dab331fb424b67da8600c4259b2c9dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4994,7 +4988,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
