@@ -42,6 +42,7 @@
 #![cfg_attr(not(feature = "logging"), allow(unused_variables, unused_assignments))]
 
 pub mod chunk;
+#[cfg(feature = "native")]
 pub mod chunk_protocol;
 pub mod data_types;
 pub mod devnet_manifest;
@@ -63,6 +64,7 @@ pub use chunk::{
     MIN_SUPPORTED_SETTLEMENT_VERSION, PROOF_TAG_MERKLE, PROOF_TAG_SINGLE_NODE, PROTOCOL_VERSION,
     XORNAME_LEN,
 };
+#[cfg(feature = "native")]
 pub use chunk_protocol::{
     send_and_await_chunk_response, send_and_await_chunk_response_with_metadata,
     ChunkProtocolResponse,
@@ -104,6 +106,9 @@ pub mod evm {
         MerklePaymentVerificationError, MerkleTree, MidpointProof, CANDIDATES_PER_POOL, MAX_LEAVES,
         MERKLE_PAYMENT_EXPIRATION,
     };
+    #[cfg(feature = "native")]
+    pub use evmlib::wallet::journal;
+    #[cfg(feature = "rpc")]
     pub use evmlib::wallet::{PayForQuotesError, Wallet};
     pub use evmlib::{
         CustomNetwork, EncodedPeerId, Network, PaymentQuote, ProofOfPayment, RewardsAddress,
@@ -113,6 +118,7 @@ pub mod evm {
     ///
     /// Exposed so downstream `LocalDevnet` wrappers and test harnesses
     /// don't need a direct `evmlib` dep just for the Anvil bindings.
+    #[cfg(feature = "native")]
     pub mod testnet {
         pub use evmlib::testnet::Testnet;
     }
@@ -120,12 +126,14 @@ pub mod evm {
     /// Lower-level `evmlib` surface (RPC provider, contract interface,
     /// and payment-vault bindings). Re-exported for the node's verifier
     /// and the Anvil-based tests; most client code will not need these.
+    #[cfg(feature = "rpc")]
     pub mod contract {
         pub use evmlib::contract::payment_vault;
     }
 
     /// HTTP provider + transaction-config helpers used by on-chain
     /// verification flows.
+    #[cfg(feature = "rpc")]
     pub mod utils {
         pub use evmlib::transaction_config::TransactionConfig;
         pub use evmlib::utils::{dummy_address, dummy_hash, http_provider};
@@ -137,10 +145,25 @@ pub mod evm {
 /// Use `ant_protocol::transport::…` in downstream crates instead of a
 /// direct `saorsa-core` dependency.
 pub mod transport {
+    /// Browser RPC capability requiring owner-signed V2 address records.
+    /// This does not select native DHT protocols; native peers send both versions.
+    pub const ADDRESS_V2_CAPABILITY: &str = "addr-v2";
+
+    pub use saorsa_core::client_routing;
+    pub use saorsa_core::dht_lookup::{
+        DEFAULT_ALPHA_VALUE, DEFAULT_K_VALUE, ITERATION_GRACE_TIMEOUT_SECS, LOOKUP_TIMEOUT_SECS,
+    };
     pub use saorsa_core::identity::{NodeIdentity, PeerId};
+    pub use saorsa_core::signed_address;
     pub use saorsa_core::{
-        DHTNode, IPDiversityConfig, MlDsa65, MultiAddr, NodeConfig as CoreNodeConfig, NodeMode,
-        P2PEvent, P2PNode, PeerRouteKind, ResponderView, WitnessedCloseGroup,
+        collect_after_first_with_grace, run_iterative_lookup, xor_distance, AddressType, DHTNode,
+        IterativeLookup, KnownReachability, LookupConfig, LookupKey, LookupNode, LookupQuery,
+        LookupQueryOutcome, LookupRunError, LookupTermination, MlDsa65, MultiAddr, ResponderView,
+        TransportAddressRecord, WitnessedCloseGroup,
+    };
+    #[cfg(feature = "native")]
+    pub use saorsa_core::{
+        IPDiversityConfig, NodeConfig as CoreNodeConfig, NodeMode, P2PEvent, P2PNode, PeerRouteKind,
     };
 }
 

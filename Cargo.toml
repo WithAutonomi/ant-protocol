@@ -10,7 +10,7 @@ homepage = "https://autonomi.com"
 readme = "README.md"
 keywords = ["p2p", "decentralized", "quantum-safe", "post-quantum", "protocol"]
 categories = ["network-programming", "cryptography"]
-rust-version = "1.75"
+rust-version = "1.91"
 
 [lib]
 name = "ant_protocol"
@@ -21,17 +21,15 @@ path = "src/lib.rs"
 # these through `ant_protocol::{transport, pqc, evm}` re-exports so the
 # version is pinned in exactly one place. Changing these versions is a
 # breaking change for both downstream crates.
-# Temporary stacked-PR dependency; replace with the released version from
-# WithAutonomi/saorsa-core#162 before merging.
-saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core.git", branch = "feat/v2-903-download-route-diagnostics" }
-saorsa-pqc = "0.5"
-evmlib = "0.9.1"
+saorsa-core = { version = "0.27.3", git = "https://github.com/WithAutonomi/saorsa-core", rev = "7770d50902fdf24b02c40765b7171af3c761ab7f", default-features = false }
+saorsa-pqc = { version = "0.5", git = "https://github.com/saorsa-labs/saorsa-pqc", rev = "29a2b272c4ee8b72c17102da00033dbfe1ddcd37", default-features = false }
+evmlib = { version = "0.9.1", git = "https://github.com/WithAutonomi/evmlib", rev = "cf424c0447c9f1ca1313b43ce07df65a227e340c", default-features = false }
 
 # Content addressing (BLAKE3)
 blake3 = "1"
 
 # Async runtime (used by send_and_await_chunk_response)
-tokio = { version = "1.35", features = ["sync", "time", "rt"] }
+tokio = { version = "1.35", features = ["sync", "time", "rt"], optional = true }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -56,7 +54,10 @@ tokio = { version = "1.35", features = ["full"] }
 [features]
 # Default: logging enabled so downstream tests and dev builds emit diagnostics.
 # Release consumers can strip logging with `--no-default-features`.
-default = ["logging"]
+default = ["native", "logging"]
+native = ["saorsa-core/native", "evmlib/native", "rpc", "dep:tokio"]
+# Wallet/RPC operations can also run through browser fetch.
+rpc = ["evmlib/rpc"]
 # Enable `tracing` macros inside the crate.
 logging = ["tracing"]
 
