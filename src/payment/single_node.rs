@@ -273,7 +273,7 @@ mod tests {
     use evmlib::transaction_config::TransactionConfig;
     #[cfg(feature = "native")]
     use evmlib::utils::{dummy_address, dummy_hash};
-    #[cfg(feature = "rpc")]
+    #[cfg(feature = "native")]
     use evmlib::wallet::Wallet;
     #[cfg(feature = "native")]
     use serial_test::serial;
