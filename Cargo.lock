@@ -2130,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "evmlib"
 version = "0.9.1"
-source = "git+https://github.com/WithAutonomi/evmlib?rev=cf424c0447c9f1ca1313b43ce07df65a227e340c#cf424c0447c9f1ca1313b43ce07df65a227e340c"
+source = "git+https://github.com/WithAutonomi/evmlib?rev=ccd65f18bf3750af8b8c3cfe07548bc77e3c368d#ccd65f18bf3750af8b8c3cfe07548bc77e3c368d"
 dependencies = [
  "alloy",
  "ant-merkle",
@@ -4986,7 +4986,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
