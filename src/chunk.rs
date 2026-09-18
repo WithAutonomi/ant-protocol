@@ -271,30 +271,13 @@ pub enum PointerPutResponse {
 pub struct PointerGetRequest {
     /// The pointer address to retrieve.
     pub address: XorName,
-    /// If set, the node answers only when it holds a different state.
-    ///
-    /// Lets a replica ask "do you have something newer than this?" without
-    /// pulling 5 KB to discover the answer is no.
-    pub known_state_id: Option<XorName>,
 }
 
 impl PointerGetRequest {
     /// Create a GET request for `address`.
     #[must_use]
     pub const fn new(address: XorName) -> Self {
-        Self {
-            address,
-            known_state_id: None,
-        }
-    }
-
-    /// Create a GET request that skips the transfer when the state is unchanged.
-    #[must_use]
-    pub const fn if_changed(address: XorName, known_state_id: XorName) -> Self {
-        Self {
-            address,
-            known_state_id: Some(known_state_id),
-        }
+        Self { address }
     }
 }
 
@@ -305,11 +288,6 @@ pub enum PointerGetResponse {
     Success {
         /// The canonical pointer encoding.
         record: Bytes,
-    },
-    /// The node holds exactly the state the requester named. Nothing to send.
-    Unchanged {
-        /// The state held, equal to the requester's `known_state_id`.
-        state_id: XorName,
     },
     /// No pointer is held at that address.
     NotFound {
