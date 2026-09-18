@@ -52,7 +52,6 @@
 //!
 //! Payment verification, storage and replication. Those are the node's job.
 
-use blake3::Hasher;
 use saorsa_pqc::api::sig::{
     ml_dsa_65, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, MlDsaVariant,
 };
@@ -99,11 +98,22 @@ pub const POINTER_BODY_LEN: usize = TARGET_OFFSET + TARGET_WIRE_LEN;
 /// Total size of an encoded pointer.
 pub const POINTER_WIRE_LEN: usize = POINTER_BODY_LEN + ML_DSA_65_SIGNATURE_LEN;
 
-/// Domain separator for the pointer address derivation.
-const DOMAIN_ADDRESS: &[u8] = b"autonomi.pointer.address.v1";
+/// Key-derivation context for the pointer address.
+///
+/// Used with BLAKE3's `derive_key`, not as a hash prefix. A prefix separates
+/// nothing: a chunk's address is `BLAKE3(content)`, so a chunk whose content is
+/// the prefix followed by an owner key would land on exactly that owner's
+/// pointer address, and an attacker could squat any address it could name.
+/// `derive_key` runs BLAKE3 in a different mode, so no plain hash of any input
+/// can produce one of these values.
+const CONTEXT_ADDRESS: &str = "autonomi.pointer.address.v1";
 
-/// Domain separator for the authenticated-state identifier.
-const DOMAIN_STATE: &[u8] = b"autonomi.pointer.state.v1";
+/// Key-derivation context for the authenticated-state identifier.
+///
+/// Also `derive_key`, and for a sharper reason: `state_id` is what a pointer's
+/// payment is quoted against. Were it a plain hash, one settled quote would pay
+/// for both the pointer and a chunk sitting at the same address.
+const CONTEXT_STATE: &str = "autonomi.pointer.state.v1";
 
 /// ML-DSA signing context for a pointer.
 ///
@@ -171,27 +181,27 @@ impl std::error::Error for PointerError {}
 // Address derivation
 // =============================================================================
 
-/// Derive a pointer address from an owner key: `BLAKE3(domain || owner)`.
+/// Derive a pointer address from an owner key.
 ///
-/// The domain separator does not carve out a disjoint address space — pointer
-/// and chunk addresses are both 32 bytes from the same range — so a node
-/// holding both kinds relies on collision resistance and must refuse an address
-/// already occupied by the other kind rather than silently pick one.
+/// `BLAKE3::derive_key` rather than a hash of a prefix and the key. Chunk
+/// addresses are `BLAKE3(content)` over the same 32-byte range, and BLAKE3's
+/// derive-key mode is a different function: no content whatever hashes to a
+/// value this can return. That is what makes the two address spaces disjoint —
+/// a node still refuses an address the other kind occupies, but that guard now
+/// covers a genuine hash collision rather than a preimage anyone can write down.
 #[must_use]
 pub fn pointer_address(owner: &MlDsaPublicKey) -> XorName {
-    let mut hasher = Hasher::new();
-    hasher.update(DOMAIN_ADDRESS);
-    hasher.update(&owner.to_bytes());
-    *hasher.finalize().as_bytes()
+    blake3::derive_key(CONTEXT_ADDRESS, &owner.to_bytes())
 }
 
 /// Derive the authenticated-state identifier from a signed body.
+///
+/// Derive-key for the same reason as the address, and one more: this is the
+/// identifier a pointer's storage is paid against, so a chunk that could occupy
+/// it would be a second record bought with one payment.
 #[must_use]
 pub fn state_id_for_body(body: &[u8]) -> XorName {
-    let mut hasher = Hasher::new();
-    hasher.update(DOMAIN_STATE);
-    hasher.update(body);
-    *hasher.finalize().as_bytes()
+    blake3::derive_key(CONTEXT_STATE, body)
 }
 
 // =============================================================================
@@ -569,7 +579,7 @@ impl Pointer {
         counter: u64,
         target: PointerTarget,
     ) -> Result<Self, PointerError> {
-        let body = encode_body(owner, counter, target)?;
+        let body = encode_body(POINTER_FORMAT_VERSION, owner, counter, target)?;
         let signature = ml_dsa_65()
             .sign_with_context(secret_key, &body, SIGNING_CONTEXT)
             .map_err(|e| PointerError::SigningFailed(e.to_string()))?;
@@ -676,21 +686,9 @@ impl Pointer {
         out
     }
 
-    /// The wire format version this record declares.
-    #[must_use]
-    pub const fn version(&self) -> u8 {
-        self.version
-    }
-
-    /// The signature over this record's fields.
-    #[must_use]
-    pub const fn signature(&self) -> &MlDsaSignature {
-        &self.sig
-    }
-
     /// The signed body: every field the signature covers.
     fn body(&self) -> Vec<u8> {
-        encode_body(&self.owner, self.counter, self.target)
+        encode_body(self.version, &self.owner, self.counter, self.target)
             .unwrap_or_else(|_| Vec::with_capacity(POINTER_BODY_LEN))
     }
 
@@ -783,6 +781,7 @@ impl Pointer {
 
 /// Encode the signed body of a pointer.
 fn encode_body(
+    version: u8,
     owner: &MlDsaPublicKey,
     counter: u64,
     target: PointerTarget,
@@ -795,7 +794,10 @@ fn encode_body(
         )));
     }
     let mut body = Vec::with_capacity(POINTER_BODY_LEN);
-    body.push(POINTER_FORMAT_VERSION);
+    // The record's own version, not this build's: a record is re-encoded as
+    // what was signed. Only `POINTER_FORMAT_VERSION` parses today, so the two
+    // coincide — but the encoder must not be the thing that assumes it.
+    body.push(version);
     body.extend_from_slice(&owner_bytes);
     body.extend_from_slice(&counter.to_be_bytes());
     body.extend_from_slice(&target.to_bytes());
@@ -1038,6 +1040,49 @@ mod tests {
                 assert!(!a.replaces(b));
                 assert_eq!(a.state_id(), b.state_id());
             }
+        }
+    }
+
+    #[test]
+    fn no_chunk_can_be_written_at_a_pointer_identity() {
+        // A chunk's address is BLAKE3 over its content, so a hash of a prefix
+        // and a key would be reachable by anyone who could write that prefix as
+        // a chunk: they could squat an owner's address before it was created,
+        // or buy a pointer and a chunk with one payment. Derive-key mode is a
+        // different function, so the obvious preimages miss.
+        let (pk, sk) = keypair(77);
+        let record = Pointer::create(
+            &sk,
+            &pk,
+            PointerTarget::new(PointerTargetKind::Chunk, [3; XORNAME_LEN]),
+        )
+        .expect("create");
+
+        let address_preimage = [b"autonomi.pointer.address.v1".as_slice(), &pk.to_bytes()].concat();
+        assert_ne!(
+            *blake3::hash(&address_preimage).as_bytes(),
+            record.address(),
+            "a chunk holding this content must not land on the pointer's address"
+        );
+
+        let body = record.to_bytes();
+        let body = body.get(..POINTER_BODY_LEN).expect("body");
+        let state_preimage = [b"autonomi.pointer.state.v1".as_slice(), body].concat();
+        assert_ne!(
+            *blake3::hash(&state_preimage).as_bytes(),
+            record.state_id(),
+            "a chunk holding this content must not land on the paid identifier"
+        );
+
+        // Nor does the bare key, the bare body, or the context alone.
+        for content in [
+            pk.to_bytes().as_slice(),
+            body,
+            b"autonomi.pointer.address.v1",
+        ] {
+            let address = *blake3::hash(content).as_bytes();
+            assert_ne!(address, record.address());
+            assert_ne!(address, record.state_id());
         }
     }
 
