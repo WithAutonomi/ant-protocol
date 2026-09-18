@@ -48,6 +48,7 @@ pub mod devnet_manifest;
 pub mod error;
 pub mod logging;
 pub mod payment;
+pub mod pointer;
 
 // =============================================================================
 // Public surface re-exports
@@ -57,7 +58,8 @@ pub use chunk::{
     client_update_required_message, settlement_compatibility, ChunkGetRequest, ChunkGetResponse,
     ChunkMessage, ChunkMessageBody, ChunkPutRequest, ChunkPutResponse, ChunkQuoteRequest,
     ChunkQuoteRequestV2, ChunkQuoteResponse, MerkleCandidateQuoteRequest,
-    MerkleCandidateQuoteRequestV2, MerkleCandidateQuoteResponse, ProtocolError,
+    MerkleCandidateQuoteRequestV2, MerkleCandidateQuoteResponse, PointerGetRequest,
+    PointerGetResponse, PointerPutRequest, PointerPutResponse, ProtocolError,
     SettlementCompatibility, XorName, CHUNK_PROTOCOL_ID, CLOSE_GROUP_MAJORITY, CLOSE_GROUP_SIZE,
     CURRENT_SETTLEMENT_VERSION, DATA_TYPE_CHUNK, MAX_CHUNK_SIZE, MAX_WIRE_MESSAGE_SIZE,
     MIN_SUPPORTED_SETTLEMENT_VERSION, PROOF_TAG_MERKLE, PROOF_TAG_SINGLE_NODE, PROTOCOL_VERSION,
@@ -74,6 +76,11 @@ pub use payment::{
     deserialize_merkle_proof, deserialize_proof, detect_proof_type, serialize_merkle_proof,
     serialize_single_node_proof, verify_merkle_candidate_signature, verify_quote_content,
     verify_quote_signature, PaymentProof, ProofType, QuotePaymentInfo, SingleNodePayment,
+};
+pub use pointer::{
+    cmp_merge, merge, pointer_address, state_id_for_body, MergeRank, ParsedPointer, Pointer,
+    PointerError, PointerState, PointerTarget, PointerTargetKind, DATA_TYPE_POINTER,
+    POINTER_BODY_LEN, POINTER_FORMAT_VERSION, POINTER_WIRE_LEN, TARGET_WIRE_LEN,
 };
 
 // =============================================================================

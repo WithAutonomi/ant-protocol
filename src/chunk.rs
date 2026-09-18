@@ -170,6 +170,154 @@ pub enum ChunkMessageBody {
     /// Request a merkle candidate quote, declaring the client's settlement
     /// version. Appended for the same reason as [`Self::QuoteRequestV2`].
     MerkleCandidateQuoteRequestV2(MerkleCandidateQuoteRequestV2),
+    /// Request to store or update a pointer.
+    ///
+    /// Appended after every existing variant for the reason given on
+    /// [`Self::QuoteRequestV2`]: discriminants above keep their wire values, and
+    /// a peer built before pointers existed rejects this cleanly as an unknown
+    /// discriminant rather than misreading it.
+    PointerPutRequest(PointerPutRequest),
+    /// Response to a pointer PUT.
+    PointerPutResponse(PointerPutResponse),
+    /// Request to retrieve a pointer.
+    PointerGetRequest(PointerGetRequest),
+    /// Response to a pointer GET.
+    PointerGetResponse(PointerGetResponse),
+}
+
+// =============================================================================
+// Pointer PUT / GET
+// =============================================================================
+
+/// Request to store or update a pointer.
+///
+/// `record` is the whole [`Pointer`](crate::pointer::Pointer) encoding. There is
+/// no separate address field: a pointer's address is a pure function of the
+/// owner key inside the record, so a second copy could only ever disagree with
+/// it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PointerPutRequest {
+    /// The canonical pointer encoding.
+    pub record: Bytes,
+    /// Optional payment proof (serialized `ProofOfPayment`).
+    ///
+    /// Quoted and paid against the record's `state_id`, not its address: the
+    /// address is stable for the pointer's life, so paying against it would
+    /// make every update after the first free.
+    pub payment_proof: Option<Vec<u8>>,
+}
+
+impl PointerPutRequest {
+    /// Create a PUT request with no payment proof.
+    #[must_use]
+    pub const fn new(record: Bytes) -> Self {
+        Self {
+            record,
+            payment_proof: None,
+        }
+    }
+
+    /// Create a PUT request carrying a payment proof.
+    #[must_use]
+    pub const fn with_payment(record: Bytes, payment_proof: Vec<u8>) -> Self {
+        Self {
+            record,
+            payment_proof: Some(payment_proof),
+        }
+    }
+}
+
+/// Response to a pointer PUT.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PointerPutResponse {
+    /// The pointer was stored, or replaced what was held.
+    ///
+    /// `state_id` names what the node now holds, so a client can tell an
+    /// accepted update from one that lost a race.
+    Success {
+        /// The pointer's address.
+        address: XorName,
+        /// The state now held at that address.
+        state_id: XorName,
+    },
+    /// The node already held this exact state. Nothing was written.
+    ///
+    /// Distinct from `Success` because it is what a re-submission of a paid
+    /// state gets: the update is not lost, but it bought nothing either.
+    Unchanged {
+        /// The pointer's address.
+        address: XorName,
+        /// The state held, which equals the one submitted.
+        state_id: XorName,
+    },
+    /// The submitted record lost to what the node already holds.
+    Stale {
+        /// The pointer's address.
+        address: XorName,
+        /// The state the node holds instead.
+        state_id: XorName,
+    },
+    /// Payment is required to store this state.
+    PaymentRequired {
+        /// Error message.
+        message: String,
+    },
+    /// An error occurred.
+    Error(ProtocolError),
+}
+
+/// Request to retrieve a pointer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PointerGetRequest {
+    /// The pointer address to retrieve.
+    pub address: XorName,
+    /// If set, the node answers only when it holds a different state.
+    ///
+    /// Lets a replica ask "do you have something newer than this?" without
+    /// pulling 5 KB to discover the answer is no.
+    pub known_state_id: Option<XorName>,
+}
+
+impl PointerGetRequest {
+    /// Create a GET request for `address`.
+    #[must_use]
+    pub const fn new(address: XorName) -> Self {
+        Self {
+            address,
+            known_state_id: None,
+        }
+    }
+
+    /// Create a GET request that skips the transfer when the state is unchanged.
+    #[must_use]
+    pub const fn if_changed(address: XorName, known_state_id: XorName) -> Self {
+        Self {
+            address,
+            known_state_id: Some(known_state_id),
+        }
+    }
+}
+
+/// Response to a pointer GET.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PointerGetResponse {
+    /// The pointer held at the requested address.
+    Success {
+        /// The canonical pointer encoding.
+        record: Bytes,
+    },
+    /// The node holds exactly the state the requester named. Nothing to send.
+    Unchanged {
+        /// The state held, equal to the requester's `known_state_id`.
+        state_id: XorName,
+    },
+    /// No pointer is held at that address.
+    NotFound {
+        /// The address asked for.
+        address: XorName,
+    },
+    /// An error occurred.
+    Error(ProtocolError),
 }
 
 /// Wire-format wrapper that pairs a sender-assigned `request_id` with
