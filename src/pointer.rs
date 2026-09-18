@@ -104,8 +104,10 @@ pub const POINTER_WIRE_LEN: usize = POINTER_BODY_LEN + ML_DSA_65_SIGNATURE_LEN;
 /// nothing: a chunk's address is `BLAKE3(content)`, so a chunk whose content is
 /// the prefix followed by an owner key would land on exactly that owner's
 /// pointer address, and an attacker could squat any address it could name.
-/// `derive_key` runs BLAKE3 in a different mode, so no plain hash of any input
-/// can produce one of these values.
+/// `derive_key` runs BLAKE3 in a different mode. The two still share a 32-byte
+/// range; what changes is that hitting a value from one mode with the other is
+/// the preimage problem BLAKE3 is assumed to resist, rather than a string
+/// anyone can write down.
 const CONTEXT_ADDRESS: &str = "autonomi.pointer.address.v1";
 
 /// Key-derivation context for the authenticated-state identifier.
@@ -184,11 +186,11 @@ impl std::error::Error for PointerError {}
 /// Derive a pointer address from an owner key.
 ///
 /// `BLAKE3::derive_key` rather than a hash of a prefix and the key. Chunk
-/// addresses are `BLAKE3(content)` over the same 32-byte range, and BLAKE3's
-/// derive-key mode is a different function: no content whatever hashes to a
-/// value this can return. That is what makes the two address spaces disjoint —
-/// a node still refuses an address the other kind occupies, but that guard now
-/// covers a genuine hash collision rather than a preimage anyone can write down.
+/// addresses are `BLAKE3(content)` over the same 32-byte range, and derive-key
+/// is a different mode of the same function: the ranges still overlap, but
+/// putting content on one of these values is a preimage problem rather than a
+/// string anyone can write down. The node still refuses an address the other
+/// kind occupies; that guard now covers the cryptographic case only.
 #[must_use]
 pub fn pointer_address(owner: &MlDsaPublicKey) -> XorName {
     blake3::derive_key(CONTEXT_ADDRESS, &owner.to_bytes())
@@ -1044,12 +1046,13 @@ mod tests {
     }
 
     #[test]
-    fn no_chunk_can_be_written_at_a_pointer_identity() {
+    fn the_obvious_chunk_preimages_miss_both_pointer_identities() {
         // A chunk's address is BLAKE3 over its content, so a hash of a prefix
-        // and a key would be reachable by anyone who could write that prefix as
-        // a chunk: they could squat an owner's address before it was created,
-        // or buy a pointer and a chunk with one payment. Derive-key mode is a
-        // different function, so the obvious preimages miss.
+        // and a key was reachable by anyone who could write that prefix as a
+        // chunk: they could squat an owner's address before it was created, or
+        // buy a pointer and a chunk with one payment. These are the preimages
+        // that construction handed out. Nothing here proves no content exists —
+        // that is a preimage assumption, not a test.
         let (pk, sk) = keypair(77);
         let record = Pointer::create(
             &sk,
