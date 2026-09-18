@@ -11,7 +11,7 @@
 //! transferable ownership cannot be made fork-proof by a local rule. An earlier
 //! draft of this module implemented transfer through a genesis object and a
 //! chain of transfer certificates; it was reviewed and withdrawn. See
-//! `ADR-0016` in `ant-node`.
+//! `ADR-0015` in `ant-node`.
 //!
 //! That choice is what lets the design be this small: the owner key is inlined
 //! in the record, so validating a pointer needs nothing but the pointer — no
@@ -137,24 +137,8 @@ pub enum PointerError {
     SignatureInvalid,
     /// Signing failed.
     SigningFailed(String),
-    /// The record is not at the address its owner derives.
-    AddressMismatch {
-        /// The address the record arrived under.
-        expected: String,
-        /// The address its owner key derives.
-        actual: String,
-    },
     /// The counter is at its maximum and cannot be advanced.
     CounterExhausted,
-    /// A client's update did not advance the counter by exactly one.
-    NotSuccessor {
-        /// The counter the node holds.
-        held: u64,
-        /// The counter the update claimed.
-        offered: u64,
-    },
-    /// A client's create used a non-zero counter.
-    NotGenesis(u64),
 }
 
 impl std::fmt::Display for PointerError {
@@ -174,24 +158,11 @@ impl std::fmt::Display for PointerError {
                 write!(f, "pointer signature does not verify under its owner key")
             }
             Self::SigningFailed(reason) => write!(f, "pointer signing failed: {reason}"),
-            Self::AddressMismatch { expected, actual } => write!(
-                f,
-                "pointer is addressed to {expected} but its owner derives {actual}"
-            ),
             Self::CounterExhausted => write!(
                 f,
                 "pointer counter is at u64::MAX and is terminal; migrate to a fresh \
                  pointer with an earlier update"
             ),
-            Self::NotSuccessor { held, offered } => write!(
-                f,
-                "an update must pay for exactly one increment: expected counter {}, got \
-                 {offered}",
-                held.saturating_add(1)
-            ),
-            Self::NotGenesis(counter) => {
-                write!(f, "a new pointer starts at counter 0, got {counter}")
-            }
         }
     }
 }
@@ -770,17 +741,6 @@ impl Pointer {
     #[must_use]
     pub fn state_id(&self) -> XorName {
         state_id_for_body(&self.body())
-    }
-
-    /// `BLAKE3` over the exact stored bytes, which a storage commitment binds.
-    ///
-    /// Per-storer, unlike [`Self::state_id`]: two replicas holding one state
-    /// under different signatures commit different values here, and that is
-    /// harmless because each node signs and is audited against its own
-    /// commitment.
-    #[must_use]
-    pub fn bytes_hash(&self) -> XorName {
-        *blake3::hash(&self.to_bytes()).as_bytes()
     }
 
     /// The successor counter for an update to this pointer.
