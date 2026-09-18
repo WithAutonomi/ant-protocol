@@ -515,6 +515,16 @@ pub struct ParsedPointer {
     owner: MlDsaPublicKey,
 }
 
+impl std::fmt::Debug for ParsedPointer {
+    /// Shows what the unverified bytes claim, not the bytes themselves.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParsedPointer")
+            .field("address", &hex::encode(self.state.address))
+            .field("counter", &self.state.counter)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ParsedPointer {
     /// Parse `bytes`, without verifying the signature.
     ///
