@@ -78,9 +78,9 @@ pub use payment::{
     verify_quote_signature, PaymentProof, ProofType, QuotePaymentInfo, SingleNodePayment,
 };
 pub use pointer::{
-    cmp_merge, merge, pointer_address, state_id_for_body, MergeRank, ParsedPointer, Pointer,
-    PointerError, PointerState, PointerTarget, PointerTargetKind, DATA_TYPE_POINTER,
-    POINTER_BODY_LEN, POINTER_FORMAT_VERSION, POINTER_WIRE_LEN, TARGET_WIRE_LEN,
+    pointer_address, state_id_for_body, ParsedPointer, Pointer, PointerError, PointerState,
+    PointerTarget, PointerTargetKind, DATA_TYPE_POINTER, POINTER_BODY_LEN, POINTER_FORMAT_VERSION,
+    POINTER_WIRE_LEN, TARGET_WIRE_LEN,
 };
 
 // =============================================================================

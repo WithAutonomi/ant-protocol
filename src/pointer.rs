@@ -52,8 +52,6 @@
 //!
 //! Payment verification, storage and replication. Those are the node's job.
 
-use std::cmp::Ordering;
-
 use blake3::Hasher;
 use saorsa_pqc::api::sig::{
     ml_dsa_65, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, MlDsaVariant,
@@ -316,7 +314,7 @@ impl PointerTarget {
 /// `counter` first, then the target, inverted so that *smaller* target bytes
 /// rank higher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MergeRank {
+struct MergeRank {
     /// The update counter. Larger wins.
     counter: u64,
     /// The encoded target, inverted: smaller bytes win.
@@ -405,7 +403,7 @@ impl PointerState {
 
     /// The comparison key for [`Self::replaces`].
     #[must_use]
-    pub fn rank(&self) -> MergeRank {
+    fn rank(&self) -> MergeRank {
         MergeRank {
             counter: self.counter,
             target: std::cmp::Reverse(self.target.to_bytes()),
@@ -783,32 +781,6 @@ impl Pointer {
     }
 }
 
-/// Compare two pointers for the merge.
-///
-/// [`Ordering::Greater`] means `a` replaces `b`. Records of different addresses
-/// are [`Ordering::Equal`] here because they are not comparable at all — they
-/// never contend, so nothing needs to order them.
-#[must_use]
-pub fn cmp_merge(a: &Pointer, b: &Pointer) -> Ordering {
-    if a.address() != b.address() {
-        return Ordering::Equal;
-    }
-    a.state().rank().cmp(&b.state().rank())
-}
-
-/// Select the winner of two pointers for one address.
-///
-/// Ties keep `a`, which is the "equal state never replaces" rule applied to a
-/// pair: an arrival that ranks equal to what is held changes nothing.
-#[must_use]
-pub fn merge(a: Pointer, b: Pointer) -> Pointer {
-    if cmp_merge(&b, &a) == Ordering::Greater {
-        b
-    } else {
-        a
-    }
-}
-
 /// Encode the signed body of a pointer.
 fn encode_body(
     owner: &MlDsaPublicKey,
@@ -927,7 +899,6 @@ mod tests {
         let theirs = signed(2, 500, 0);
         assert!(!mine.replaces(&theirs));
         assert!(!theirs.replaces(&mine));
-        assert_eq!(cmp_merge(&mine, &theirs), Ordering::Equal);
     }
 
     #[test]
@@ -967,14 +938,6 @@ mod tests {
         let high_target = signed(1, u64::MAX, 2);
         assert!(low_target.replaces(&high_target), "smaller target wins");
         assert!(!high_target.replaces(&low_target));
-        assert_eq!(
-            merge(high_target.clone(), low_target.clone()).state_id(),
-            low_target.state_id()
-        );
-        assert_eq!(
-            merge(low_target.clone(), high_target).state_id(),
-            low_target.state_id()
-        );
     }
 
     #[test]
@@ -1079,12 +1042,35 @@ mod tests {
     }
 
     #[test]
-    fn merge_is_order_independent() {
-        let a = signed(1, 2, 1);
-        let b = signed(1, 5, 1);
-        assert_eq!(
-            merge(a.clone(), b.clone()).state_id(),
-            merge(b, a).state_id()
-        );
+    fn the_rule_is_a_strict_order_so_no_fold_depends_on_arrival_order() {
+        // Nodes and clients both pick a winner by folding `replaces` over
+        // whatever arrives. That fold gives the same answer whatever the order
+        // exactly when the rule is a strict total order on one address: never
+        // both ways round, always one way for distinct states, and transitive.
+        let records = [
+            signed(1, 0, 9),
+            signed(1, 2, 1),
+            signed(1, 5, 1),
+            signed(1, 5, 2),
+        ];
+        for a in &records {
+            assert!(!a.replaces(a), "an equal state never replaces");
+            for b in &records {
+                assert!(
+                    !(a.replaces(b) && b.replaces(a)),
+                    "two records cannot each replace the other"
+                );
+                assert!(
+                    a.replaces(b) || b.replaces(a) || a.state_id() == b.state_id(),
+                    "distinct states are always ordered"
+                );
+                for c in &records {
+                    assert!(
+                        !(a.replaces(b) && b.replaces(c)) || a.replaces(c),
+                        "the order is transitive"
+                    );
+                }
+            }
+        }
     }
 }
