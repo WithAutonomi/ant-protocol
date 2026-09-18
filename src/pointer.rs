@@ -547,26 +547,31 @@ impl ParsedPointer {
 /// signature covers exactly its body and its address derives from its owner.
 #[derive(Clone)]
 pub struct Pointer {
-    /// The canonical encoding, always [`POINTER_WIRE_LEN`] bytes.
+    /// Wire format discriminator. Signed, so it cannot be downgraded.
+    version: u8,
+    /// The owner's public key — the pointer's identity.
     ///
-    /// Held as bytes because the signature is what was signed over, and
-    /// re-encoding a parsed struct is a chance to produce different bytes.
-    bytes: Vec<u8>,
-    /// Parsed owner key, kept to avoid re-parsing on every use.
+    /// The address is `BLAKE3(domain || owner)`, so a pointer is public-key
+    /// addressed, and the key that verifies it travels with it: ML-DSA has no
+    /// key recovery and a 1,952-byte key cannot be a 32-byte address.
     owner: MlDsaPublicKey,
-    /// The state this record claims, established as signed by construction.
-    state: PointerState,
+    /// Update count: 0 at creation, one more for each paid update.
+    counter: u64,
+    /// What this points at: a chunk or another pointer. Opaque to a node.
+    target: PointerTarget,
+    /// The owner's signature over every field above.
+    sig: MlDsaSignature,
 }
 
 impl std::fmt::Debug for Pointer {
     /// Shows what identifies the record, not its 5 KB of key and signature.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Pointer")
-            .field("address", &hex::encode(self.state.address))
-            .field("counter", &self.state.counter)
-            .field("target_tag", &self.state.target.kind_tag())
-            .field("target", &hex::encode(self.state.target.address))
-            .field("state_id", &hex::encode(self.state.state_id))
+            .field("address", &hex::encode(self.address()))
+            .field("counter", &self.counter)
+            .field("target_tag", &self.target.kind_tag())
+            .field("target", &hex::encode(self.target.address))
+            .field("state_id", &hex::encode(self.state_id()))
             .finish_non_exhaustive()
     }
 }
@@ -672,16 +677,42 @@ impl Pointer {
         }
 
         Ok(Self {
-            bytes,
+            version: POINTER_FORMAT_VERSION,
             owner,
-            state,
+            counter: state.counter,
+            target: state.target,
+            sig: signature,
         })
     }
 
-    /// The canonical encoding this record was parsed from.
+    /// The canonical encoding of this record.
+    ///
+    /// Re-encoded from the fields rather than cached. Every field is
+    /// fixed-width with no optionality, so there is exactly one encoding and
+    /// this is always byte-identical to what was signed.
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = self.body();
+        out.extend_from_slice(&self.sig.to_bytes());
+        out
+    }
+
+    /// The wire format version this record declares.
+    #[must_use]
+    pub const fn version(&self) -> u8 {
+        self.version
+    }
+
+    /// The signature over this record's fields.
+    #[must_use]
+    pub const fn signature(&self) -> &MlDsaSignature {
+        &self.sig
+    }
+
+    /// The signed body: every field the signature covers.
+    fn body(&self) -> Vec<u8> {
+        encode_body(&self.owner, self.counter, self.target)
+            .unwrap_or_else(|_| Vec::with_capacity(POINTER_BODY_LEN))
     }
 
     /// The owner's public key. Fixed for the pointer's life.
@@ -691,27 +722,34 @@ impl Pointer {
     }
 
     /// The signed state this record carries.
+    ///
+    /// Derived, not stored: the identifiers are hashes of fields already here.
     #[must_use]
-    pub const fn state(&self) -> &PointerState {
-        &self.state
+    pub fn state(&self) -> PointerState {
+        PointerState {
+            state_id: self.state_id(),
+            address: self.address(),
+            counter: self.counter,
+            target: self.target,
+        }
     }
 
     /// The update counter.
     #[must_use]
     pub const fn counter(&self) -> u64 {
-        self.state.counter
+        self.counter
     }
 
     /// What this pointer points at.
     #[must_use]
     pub const fn target(&self) -> PointerTarget {
-        self.state.target
+        self.target
     }
 
     /// The address this record belongs at: `BLAKE3(domain || owner)`.
     #[must_use]
-    pub const fn address(&self) -> XorName {
-        self.state.address
+    pub fn address(&self) -> XorName {
+        pointer_address(&self.owner)
     }
 
     /// The authenticated-state identifier: `BLAKE3(domain || body)`.
@@ -720,8 +758,8 @@ impl Pointer {
     /// different valid signatures over one state share a `state_id`. This is
     /// what sync hints carry and what a quote is paid against.
     #[must_use]
-    pub const fn state_id(&self) -> XorName {
-        self.state.state_id
+    pub fn state_id(&self) -> XorName {
+        state_id_for_body(&self.body())
     }
 
     /// `BLAKE3` over the exact stored bytes, which a storage commitment binds.
@@ -732,7 +770,7 @@ impl Pointer {
     /// commitment.
     #[must_use]
     pub fn bytes_hash(&self) -> XorName {
-        *blake3::hash(&self.bytes).as_bytes()
+        *blake3::hash(&self.to_bytes()).as_bytes()
     }
 
     /// The successor counter for an update to this pointer.
@@ -749,8 +787,7 @@ impl Pointer {
     /// displaces it. A strictly larger counter is the one move nothing can
     /// answer, so migration must spend a counter it still has.
     pub fn next_counter(&self) -> Result<u64, PointerError> {
-        self.state
-            .counter
+        self.counter
             .checked_add(1)
             .ok_or(PointerError::CounterExhausted)
     }
@@ -764,7 +801,7 @@ impl Pointer {
     /// rather than on it.
     #[must_use]
     pub const fn is_terminal(&self) -> bool {
-        self.state.counter == u64::MAX
+        self.counter == u64::MAX
     }
 
     /// Whether `self` replaces `other` under the merge rule.
@@ -772,7 +809,7 @@ impl Pointer {
     /// See [`PointerState::replaces`], which is where the rule lives.
     #[must_use]
     pub fn replaces(&self, other: &Self) -> bool {
-        self.state.replaces(&other.state)
+        self.state().replaces(&other.state())
     }
 }
 
@@ -847,13 +884,13 @@ mod tests {
     fn sizes_match_the_design() {
         assert_eq!(POINTER_BODY_LEN, 1994);
         assert_eq!(POINTER_WIRE_LEN, 5303);
-        assert_eq!(signed(1, 0, 0).as_bytes().len(), POINTER_WIRE_LEN);
+        assert_eq!(signed(1, 0, 0).to_bytes().len(), POINTER_WIRE_LEN);
     }
 
     #[test]
     fn roundtrips_and_validates() {
         let record = signed(1, 42, 7);
-        let parsed = Pointer::from_bytes(record.as_bytes()).expect("reparse");
+        let parsed = Pointer::from_bytes(&record.to_bytes()).expect("reparse");
         assert_eq!(parsed.counter(), 42);
         assert_eq!(parsed.address(), record.address());
         assert_eq!(parsed.state_id(), record.state_id());
@@ -862,7 +899,7 @@ mod tests {
     #[test]
     fn a_tampered_record_does_not_verify() {
         let record = signed(1, 5, 5);
-        let mut bytes = record.as_bytes().to_vec();
+        let mut bytes = record.to_bytes();
         if let Some(byte) = bytes.get_mut(COUNTER_OFFSET + 7) {
             *byte ^= 1;
         }
@@ -875,7 +912,7 @@ mod tests {
     #[test]
     fn an_unknown_format_version_is_refused() {
         let record = signed(1, 1, 1);
-        let mut bytes = record.as_bytes().to_vec();
+        let mut bytes = record.to_bytes();
         if let Some(byte) = bytes.first_mut() {
             *byte = 2;
         }
@@ -892,7 +929,7 @@ mod tests {
         // reuse a receipt bought for version 1.
         let record = signed(1, 3, 3);
         let mut body = record
-            .as_bytes()
+            .to_bytes()
             .get(..POINTER_BODY_LEN)
             .expect("body")
             .to_vec();
@@ -981,13 +1018,13 @@ mod tests {
 
         let first = created.update(&sk, target(2)).expect("update");
         assert_eq!(first.counter(), 1);
-        assert!(first.state().is_successor_of(created.state()));
+        assert!(first.state().is_successor_of(&created.state()));
 
         let second = first.update(&sk, target(3)).expect("update");
         assert_eq!(second.counter(), 2);
-        assert!(second.state().is_successor_of(first.state()));
+        assert!(second.state().is_successor_of(&first.state()));
         assert!(
-            !second.state().is_successor_of(created.state()),
+            !second.state().is_successor_of(&created.state()),
             "no skipping"
         );
     }
@@ -1004,12 +1041,12 @@ mod tests {
         for jump in [0u64, 4, 5, 7, 99, u64::MAX] {
             let offered = Pointer::sign(&sk, &pk, jump, target).expect("sign");
             assert!(
-                !offered.state().is_successor_of(held.state()),
+                !offered.state().is_successor_of(&held.state()),
                 "counter {jump} must not be accepted as the successor of 5"
             );
         }
         let ok = Pointer::sign(&sk, &pk, 6, target).expect("sign");
-        assert!(ok.state().is_successor_of(held.state()));
+        assert!(ok.state().is_successor_of(&held.state()));
     }
 
     #[test]
@@ -1019,7 +1056,7 @@ mod tests {
         let target = PointerTarget::new(PointerTargetKind::Chunk, [1; XORNAME_LEN]);
         let held = Pointer::sign(&my_sk, &mine, 5, target).expect("sign");
         let forged = Pointer::sign(&their_sk, &theirs, 6, target).expect("sign");
-        assert!(!forged.state().is_successor_of(held.state()));
+        assert!(!forged.state().is_successor_of(&held.state()));
     }
 
     #[test]
@@ -1029,10 +1066,35 @@ mod tests {
         let terminal = Pointer::sign(&sk, &pk, u64::MAX, target).expect("sign");
         let wrapped = Pointer::sign(&sk, &pk, 0, target).expect("sign");
         assert!(
-            !wrapped.state().is_successor_of(terminal.state()),
+            !wrapped.state().is_successor_of(&terminal.state()),
             "the counter must not wrap around into a fresh-looking pointer"
         );
         assert!(terminal.update(&sk, target).is_err());
+    }
+
+    /// Re-encoding must be byte-identical to what was signed.
+    ///
+    /// This is what lets the record hold its five fields and nothing else: the
+    /// encoding is fixed-width with no optionality, so there is exactly one
+    /// byte sequence for a given record and caching it would buy nothing. If
+    /// this ever fails, the cache has to come back.
+    #[test]
+    fn re_encoding_is_byte_identical() {
+        let (pk, sk) = keypair(30);
+        for counter in [0u64, 1, 42, u64::MAX] {
+            for tag in [0u8, 1, 200] {
+                let target = PointerTarget::from_raw_tag(tag, [tag; XORNAME_LEN]);
+                let signed = Pointer::sign(&sk, &pk, counter, target).expect("sign");
+                let wire = signed.to_bytes();
+
+                // Parsed from the wire, re-encoded, identical.
+                let parsed = Pointer::from_bytes(&wire).expect("parse");
+                assert_eq!(parsed.to_bytes(), wire, "counter {counter}, tag {tag}");
+
+                // And still verifies, which is the property that actually matters.
+                assert!(Pointer::from_bytes(&parsed.to_bytes()).is_ok());
+            }
+        }
     }
 
     #[test]
