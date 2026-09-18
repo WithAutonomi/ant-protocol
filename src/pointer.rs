@@ -342,7 +342,7 @@ struct MergeRank {
 /// already holds and stop before doing expensive work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PointerState {
-    /// The authenticated-state identifier, `BLAKE3(domain || body)`.
+    /// The authenticated-state identifier, derived from the signed body.
     pub state_id: XorName,
     /// The address the record belongs at.
     pub address: XorName,
@@ -540,7 +540,7 @@ pub struct Pointer {
     version: u8,
     /// The owner's public key — the pointer's identity.
     ///
-    /// The address is `BLAKE3(domain || owner)`, so a pointer is public-key
+    /// The address is derived from the owner key alone, so a pointer is public-key
     /// addressed, and the key that verifies it travels with it: ML-DSA has no
     /// key recovery and a 1,952-byte key cannot be a 32-byte address.
     owner: MlDsaPublicKey,
@@ -723,13 +723,13 @@ impl Pointer {
         self.target
     }
 
-    /// The address this record belongs at: `BLAKE3(domain || owner)`.
+    /// The address this record belongs at, derived from the owner key.
     #[must_use]
     pub fn address(&self) -> XorName {
         pointer_address(&self.owner)
     }
 
-    /// The authenticated-state identifier: `BLAKE3(domain || body)`.
+    /// The authenticated-state identifier, derived from the signed body.
     ///
     /// Names the state rather than the encoding, so two records carrying
     /// different valid signatures over one state share a `state_id`. This is
