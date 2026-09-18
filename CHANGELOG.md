@@ -20,10 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Ownership is immutable: a former owner keeps its key forever, so transferable
   ownership cannot be made fork-proof by a local rule.
 
-  A quote is paid against `state_id = BLAKE3(domain || body)`, not the address:
-  the address is stable for the pointer's life, so paying against it would make
-  every update after the first free. Creation is counter 0 and each update is
-  `counter + 1`, so one payment buys exactly one increment.
+  A quote is paid against `state_id = BLAKE3::derive_key("autonomi.pointer.state.v1", body)`,
+  not the address: the address is stable for the pointer's life, so paying
+  against it would make every update after the first free. Creation is counter 0
+  and an update is `counter + 1`, or the same counter with a smaller target when
+  two updates race — so one payment buys one state and at most one increment.
 
 - `ChunkMessageBody::{PointerPutRequest, PointerPutResponse, PointerGetRequest,
   PointerGetResponse}`, appended after every existing variant so the
