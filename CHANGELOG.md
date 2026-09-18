@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
   5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
-  `BLAKE3("autonomi.pointer.address.v1" || owner)` — so a pointer is public-key
-  addressed and verifies from its own bytes, with no fetch.
+  `BLAKE3::derive_key("autonomi.pointer.address.v1", owner)` — so a pointer is
+  public-key addressed and verifies from its own bytes, with no fetch. Derive-key
+  rather than a hash of a prefix, because a chunk is addressed by a plain hash of
+  its content and a prefix would leave both pointer identities reachable by
+  anyone who could write the preimage down.
 
   Ownership is immutable: a former owner keeps its key forever, so transferable
   ownership cannot be made fork-proof by a local rule.
