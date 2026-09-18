@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+
+- **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
+  5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
+  `BLAKE3("autonomi.pointer.address.v1" || owner)` — so a pointer is public-key
+  addressed and verifies from its own bytes, with no fetch.
+
+  Ownership is immutable: a former owner keeps its key forever, so transferable
+  ownership cannot be made fork-proof by a local rule.
+
+  A quote is paid against `state_id = BLAKE3(domain || body)`, not the address:
+  the address is stable for the pointer's life, so paying against it would make
+  every update after the first free. Creation is counter 0 and each update is
+  `counter + 1`, so one payment buys exactly one increment.
+
+- `ChunkMessageBody::{PointerPutRequest, PointerPutResponse, PointerGetRequest,
+  PointerGetResponse}`, appended after every existing variant so the
+  discriminants above keep their wire values and a peer built before pointers
+  rejects them cleanly as unknown rather than misreading them.
+
+### Added
 - **Settlement version on quote requests.** `CURRENT_SETTLEMENT_VERSION`,
   `MIN_SUPPORTED_SETTLEMENT_VERSION` and `settlement_version_is_supported`
   describe which payment rule set a build settles under, tracked separately
