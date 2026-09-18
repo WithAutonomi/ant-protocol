@@ -37,9 +37,17 @@
 //! # Identity
 //!
 //! ```text
-//! A        = BLAKE3("autonomi.pointer.address.v1" || owner)
-//! state_id = BLAKE3("autonomi.pointer.state.v1"   || body)
+//! A        = BLAKE3::derive_key("autonomi.pointer.address.v1", owner)
+//! state_id = BLAKE3::derive_key("autonomi.pointer.state.v1",   body)
 //! ```
+//!
+//! Derive-key, not a hash of a prefix and the input. A chunk is addressed by a
+//! plain hash of its content, so a prefix would put both of these inside the
+//! chunk address space for anyone who could write the preimage down: squatting
+//! an owner's address before they used it, or buying a pointer and a chunk with
+//! one payment. Both modes still produce 32 bytes, so the ranges overlap; what
+//! changed is that crossing them is the preimage problem BLAKE3 is assumed to
+//! resist.
 //!
 //! `A` routes and decides which nodes are responsible. `state_id` names the
 //! authenticated state: it is what sync hints carry, what a fetch decision
@@ -450,22 +458,28 @@ impl PointerState {
         self.address == other.address && self.rank() > other.rank()
     }
 
-    /// Whether this state is the paid successor of `held`.
+    /// Whether a node holding `held` may take this state as a paid update.
     ///
-    /// One payment buys **one increment**. A client's update must be
-    /// `held.counter + 1` at the same address: without that an owner could pay
-    /// once, jump the counter to `u64::MAX`, and both skip every intermediate
-    /// payment and strand the pointer at a counter nothing can advance.
+    /// [`Self::replaces`] says which of two states wins. This says which a node
+    /// will sell you, and it differs in exactly one way: a paid update may not
+    /// skip. One payment buys **one increment**, so without the bound an owner
+    /// could pay once, jump the counter to `u64::MAX`, and both skip every
+    /// intermediate payment and strand the pointer where nothing can advance
+    /// it.
     ///
-    /// Only the client path requires this. Replication accepts any strictly
-    /// greater counter under [`Self::replaces`], because a replica that missed
-    /// an update must still be able to catch up — refusing a gap there would
-    /// leave it permanently stale instead.
+    /// A state at the counter already held is *not* a skip. It is separately
+    /// paid, it wins on the target tie-break, and it is what every node in the
+    /// group converges on — so a node must take it. Refusing would let arrival
+    /// order decide which of two paid states each node keeps, and leave a
+    /// permanent fork at one counter: precisely what the merge rule exists to
+    /// prevent.
+    ///
+    /// Only the client path asks this. Replication uses [`Self::replaces`]
+    /// alone, because a replica that missed an update must still be able to
+    /// catch up — refusing a gap there would leave it permanently stale.
     #[must_use]
-    pub fn is_successor_of(&self, held: &Self) -> bool {
-        self.address == held.address
-            && self.counter == held.counter.wrapping_add(1)
-            && held.counter != u64::MAX
+    pub fn is_paid_update_of(&self, held: &Self) -> bool {
+        self.replaces(held) && self.counter <= held.counter.saturating_add(1)
     }
 
     /// Whether this state may create a pointer that does not exist yet.
@@ -955,13 +969,13 @@ mod tests {
 
         let first = created.update(&sk, target(2)).expect("update");
         assert_eq!(first.counter(), 1);
-        assert!(first.state().is_successor_of(&created.state()));
+        assert!(first.state().is_paid_update_of(&created.state()));
 
         let second = first.update(&sk, target(3)).expect("update");
         assert_eq!(second.counter(), 2);
-        assert!(second.state().is_successor_of(&first.state()));
+        assert!(second.state().is_paid_update_of(&first.state()));
         assert!(
-            !second.state().is_successor_of(&created.state()),
+            !second.state().is_paid_update_of(&created.state()),
             "no skipping"
         );
     }
@@ -978,12 +992,37 @@ mod tests {
         for jump in [0u64, 4, 5, 7, 99, u64::MAX] {
             let offered = Pointer::sign(&sk, &pk, jump, target).expect("sign");
             assert!(
-                !offered.state().is_successor_of(&held.state()),
+                !offered.state().is_paid_update_of(&held.state()),
                 "counter {jump} must not be accepted as the successor of 5"
             );
         }
         let ok = Pointer::sign(&sk, &pk, 6, target).expect("sign");
-        assert!(ok.state().is_successor_of(&held.state()));
+        assert!(ok.state().is_paid_update_of(&held.state()));
+    }
+
+    #[test]
+    fn a_tie_break_winner_at_the_held_counter_is_an_update_not_a_skip() {
+        // Two states at one counter both get paid for, and the merge rule says
+        // the smaller target wins. If a node would not take that winner, the
+        // two orders of arrival leave two nodes holding different records for
+        // ever — the fork the merge rule exists to prevent, reintroduced by the
+        // gate in front of it.
+        let loser = signed(25, 5, 9);
+        let winner = signed(25, 5, 1);
+        assert!(winner.replaces(&loser), "smaller target bytes win");
+
+        assert!(
+            winner.state().is_paid_update_of(&loser.state()),
+            "a node holding the loser must take the winner"
+        );
+        assert!(
+            !loser.state().is_paid_update_of(&winner.state()),
+            "and a node holding the winner must not go back"
+        );
+
+        // Still one increment at a time from there.
+        assert!(signed(25, 6, 9).state().is_paid_update_of(&winner.state()));
+        assert!(!signed(25, 7, 9).state().is_paid_update_of(&winner.state()));
     }
 
     #[test]
@@ -993,7 +1032,7 @@ mod tests {
         let target = PointerTarget::new(PointerTargetKind::Chunk, [1; XORNAME_LEN]);
         let held = Pointer::sign(&my_sk, &mine, 5, target).expect("sign");
         let forged = Pointer::sign(&their_sk, &theirs, 6, target).expect("sign");
-        assert!(!forged.state().is_successor_of(&held.state()));
+        assert!(!forged.state().is_paid_update_of(&held.state()));
     }
 
     #[test]
@@ -1003,7 +1042,7 @@ mod tests {
         let terminal = Pointer::sign(&sk, &pk, u64::MAX, target).expect("sign");
         let wrapped = Pointer::sign(&sk, &pk, 0, target).expect("sign");
         assert!(
-            !wrapped.state().is_successor_of(&terminal.state()),
+            !wrapped.state().is_paid_update_of(&terminal.state()),
             "the counter must not wrap around into a fresh-looking pointer"
         );
         assert!(terminal.update(&sk, target).is_err());
