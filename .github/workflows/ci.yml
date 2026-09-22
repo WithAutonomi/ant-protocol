@@ -72,6 +72,8 @@ jobs:
         # unused-variable or cfg-gate regressions that a lib-only build
         # would miss.
         run: cargo test --no-default-features -- --test-threads=1
+      - name: Run portable RPC tests
+        run: cargo test --locked --no-default-features --features rpc -- --test-threads=1
 
   doc:
     name: Documentation
