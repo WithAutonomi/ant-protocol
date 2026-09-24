@@ -22,9 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   A quote is paid against `state_id = BLAKE3::derive_key("autonomi.pointer.state.v1", body)`,
   not the address: the address is stable for the pointer's life, so paying
-  against it would make every update after the first free. Creation is counter 0
-  and an update is `counter + 1`, or the same counter with a smaller target when
-  two updates race — so one payment buys one state and at most one increment.
+  against it would make every update after the first free. The merge rule is a
+  larger counter first, then smaller target bytes. The counter orders states
+  rather than metering them: any paid state that beats the held one is taken,
+  so a counter may skip and a fork at one counter is healed by any later one.
 
 - `ChunkMessageBody::{PointerPutRequest, PointerPutResponse, PointerGetRequest,
   PointerGetResponse}`, appended after every existing variant so the

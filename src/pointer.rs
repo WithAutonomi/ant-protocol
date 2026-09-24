@@ -457,39 +457,6 @@ impl PointerState {
     pub fn replaces(&self, other: &Self) -> bool {
         self.address == other.address && self.rank() > other.rank()
     }
-
-    /// Whether a node holding `held` may take this state as a paid update.
-    ///
-    /// [`Self::replaces`] says which of two states wins. This says which a node
-    /// will sell you, and it differs in exactly one way: a paid update may not
-    /// skip. One payment buys **one increment**, so without the bound an owner
-    /// could pay once, jump the counter to `u64::MAX`, and both skip every
-    /// intermediate payment and strand the pointer where nothing can advance
-    /// it.
-    ///
-    /// A state at the counter already held is *not* a skip. It is separately
-    /// paid, it wins on the target tie-break, and it is what every node in the
-    /// group converges on — so a node must take it. Refusing would let arrival
-    /// order decide which of two paid states each node keeps, and leave a
-    /// permanent fork at one counter: precisely what the merge rule exists to
-    /// prevent.
-    ///
-    /// Only the client path asks this. Replication uses [`Self::replaces`]
-    /// alone, because a replica that missed an update must still be able to
-    /// catch up — refusing a gap there would leave it permanently stale.
-    #[must_use]
-    pub fn is_paid_update_of(&self, held: &Self) -> bool {
-        self.replaces(held) && self.counter <= held.counter.saturating_add(1)
-    }
-
-    /// Whether this state may create a pointer that does not exist yet.
-    ///
-    /// A pointer is created at counter 0 and paid for like any update, so
-    /// "pay to create" and "pay to update" are one rule applied twice.
-    #[must_use]
-    pub const fn is_genesis(&self) -> bool {
-        self.counter == 0
-    }
 }
 
 // =============================================================================
@@ -560,7 +527,12 @@ pub struct Pointer {
     /// addressed, and the key that verifies it travels with it: ML-DSA has no
     /// key recovery and a 1,952-byte key cannot be a 32-byte address.
     owner: MlDsaPublicKey,
-    /// Update count: 0 at creation, one more for each paid update.
+    /// The merge rule's first key: a larger counter wins.
+    ///
+    /// [`Self::create`] starts at 0 and [`Self::update`] adds one, but nothing
+    /// requires the next state to be exactly one on. The counter orders states;
+    /// it does not meter them. Every stored state is paid for once, whatever
+    /// its number, so a number that is skipped is never stored and owes nothing.
     counter: u64,
     /// What this points at: a chunk or another pointer. Opaque to a node.
     target: PointerTarget,
@@ -619,8 +591,8 @@ impl Pointer {
 
     /// Sign the update that follows this one: `counter + 1`, new target.
     ///
-    /// The only way a client should build an update, so the paid-increment rule
-    /// is satisfied by construction rather than by remembering it.
+    /// One past this record is the smallest counter that replaces it, and so
+    /// the natural next state. A larger one would replace it just as well.
     ///
     /// # Errors
     ///
@@ -959,93 +931,68 @@ mod tests {
     }
 
     #[test]
-    fn a_new_pointer_starts_at_zero_and_updates_step_by_one() {
+    fn create_starts_at_zero_and_update_adds_one() {
         let (pk, sk) = keypair(20);
         let target = |b: u8| PointerTarget::new(PointerTargetKind::Chunk, [b; XORNAME_LEN]);
 
         let created = Pointer::create(&sk, &pk, target(1)).expect("create");
         assert_eq!(created.counter(), 0);
-        assert!(created.state().is_genesis());
 
         let first = created.update(&sk, target(2)).expect("update");
         assert_eq!(first.counter(), 1);
-        assert!(first.state().is_paid_update_of(&created.state()));
+        assert!(first.replaces(&created));
 
         let second = first.update(&sk, target(3)).expect("update");
         assert_eq!(second.counter(), 2);
-        assert!(second.state().is_paid_update_of(&first.state()));
-        assert!(
-            !second.state().is_paid_update_of(&created.state()),
-            "no skipping"
-        );
+        assert!(second.replaces(&first));
     }
 
     #[test]
-    fn a_counter_jump_is_not_a_paid_successor() {
-        // One payment buys one increment. Without this an owner pays once,
-        // jumps to u64::MAX, skips every intermediate payment, and strands the
-        // pointer at a counter nothing can advance.
-        let (pk, sk) = keypair(21);
-        let target = PointerTarget::new(PointerTargetKind::Chunk, [7; XORNAME_LEN]);
-        let held = Pointer::sign(&sk, &pk, 5, target).expect("sign");
-
-        for jump in [0u64, 4, 5, 7, 99, u64::MAX] {
-            let offered = Pointer::sign(&sk, &pk, jump, target).expect("sign");
+    fn any_larger_counter_replaces_so_counters_may_skip() {
+        // The counter orders states; it does not meter them. Each stored state
+        // is paid for once whatever its number, so a skipped number is never
+        // stored and owes nothing.
+        let held = signed(21, 5, 7);
+        for later in [6u64, 7, 99, u64::MAX] {
             assert!(
-                !offered.state().is_paid_update_of(&held.state()),
-                "counter {jump} must not be accepted as the successor of 5"
+                signed(21, later, 7).replaces(&held),
+                "counter {later} must replace counter 5"
             );
         }
-        let ok = Pointer::sign(&sk, &pk, 6, target).expect("sign");
-        assert!(ok.state().is_paid_update_of(&held.state()));
+        for earlier in [0u64, 4] {
+            assert!(
+                !signed(21, earlier, 7).replaces(&held),
+                "counter {earlier} must not replace counter 5"
+            );
+        }
     }
 
     #[test]
-    fn a_tie_break_winner_at_the_held_counter_is_an_update_not_a_skip() {
-        // Two states at one counter both get paid for, and the merge rule says
-        // the smaller target wins. If a node would not take that winner, the
-        // two orders of arrival leave two nodes holding different records for
-        // ever — the fork the merge rule exists to prevent, reintroduced by the
-        // gate in front of it.
-        let loser = signed(25, 5, 9);
-        let winner = signed(25, 5, 1);
-        assert!(winner.replaces(&loser), "smaller target bytes win");
+    fn a_fork_at_one_counter_resolves_by_target_and_any_later_counter_heals_it() {
+        // Two records at one counter are a fork. Every node that sees both
+        // keeps the smaller target, and a record at any later counter replaces
+        // whichever side a node was left holding.
+        let smaller = signed(25, 5, 1);
+        let larger = signed(25, 5, 9);
+        assert!(smaller.replaces(&larger), "smaller target bytes win");
+        assert!(!larger.replaces(&smaller));
 
-        assert!(
-            winner.state().is_paid_update_of(&loser.state()),
-            "a node holding the loser must take the winner"
-        );
-        assert!(
-            !loser.state().is_paid_update_of(&winner.state()),
-            "and a node holding the winner must not go back"
-        );
-
-        // Still one increment at a time from there.
-        assert!(signed(25, 6, 9).state().is_paid_update_of(&winner.state()));
-        assert!(!signed(25, 7, 9).state().is_paid_update_of(&winner.state()));
+        for later in [6u64, 50] {
+            let healed = signed(25, later, 9);
+            assert!(healed.replaces(&smaller));
+            assert!(healed.replaces(&larger));
+        }
     }
 
     #[test]
-    fn another_owner_is_never_a_successor() {
-        let (mine, my_sk) = keypair(22);
-        let (theirs, their_sk) = keypair(23);
-        let target = PointerTarget::new(PointerTargetKind::Chunk, [1; XORNAME_LEN]);
-        let held = Pointer::sign(&my_sk, &mine, 5, target).expect("sign");
-        let forged = Pointer::sign(&their_sk, &theirs, 6, target).expect("sign");
-        assert!(!forged.state().is_paid_update_of(&held.state()));
-    }
-
-    #[test]
-    fn a_terminal_counter_has_no_successor() {
+    fn a_terminal_pointer_cannot_be_updated() {
         let (pk, sk) = keypair(24);
         let target = PointerTarget::new(PointerTargetKind::Chunk, [1; XORNAME_LEN]);
         let terminal = Pointer::sign(&sk, &pk, u64::MAX, target).expect("sign");
-        let wrapped = Pointer::sign(&sk, &pk, 0, target).expect("sign");
         assert!(
-            !wrapped.state().is_paid_update_of(&terminal.state()),
+            terminal.update(&sk, target).is_err(),
             "the counter must not wrap around into a fresh-looking pointer"
         );
-        assert!(terminal.update(&sk, target).is_err());
     }
 
     /// Re-encoding must be byte-identical to what was signed.
