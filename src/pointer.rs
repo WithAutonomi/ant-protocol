@@ -11,7 +11,7 @@
 //! transferable ownership cannot be made fork-proof by a local rule. An earlier
 //! draft of this module implemented transfer through a genesis object and a
 //! chain of transfer certificates; it was reviewed and withdrawn. See
-//! `ADR-0015` in `ant-node`.
+//! `ADR-0016` in `ant-node`.
 //!
 //! That choice is what lets the design be this small: the owner key is inlined
 //! in the record, so validating a pointer needs nothing but the pointer — no
