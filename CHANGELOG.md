@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+
+- **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
+  5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
+  `BLAKE3::derive_key("autonomi.pointer.address.v1", owner)` — so a pointer is
+  public-key addressed and verifies from its own bytes, with no fetch. Derive-key
+  rather than a hash of a prefix, because a chunk is addressed by a plain hash of
+  its content and a prefix would leave both pointer identities reachable by
+  anyone who could write the preimage down.
+
+  Ownership is immutable: a former owner keeps its key forever, so transferable
+  ownership cannot be made fork-proof by a local rule.
+
+  A quote is paid against `state_id = BLAKE3::derive_key("autonomi.pointer.state.v1", body)`,
+  not the address: the address is stable for the pointer's life, so paying
+  against it would make every update after the first free. The merge rule is a
+  larger counter first, then smaller target bytes. The counter orders states
+  rather than metering them: any paid state that beats the held one is taken,
+  so a counter may skip and a fork at one counter is healed by any later one.
+
+- `ChunkMessageBody::{PointerPutRequest, PointerPutResponse, PointerGetRequest,
+  PointerGetResponse}`, appended after every existing variant so the
+  discriminants above keep their wire values and a peer built before pointers
+  rejects them cleanly as unknown rather than misreading them.
+
+### Added
 - **Settlement version on quote requests.** `CURRENT_SETTLEMENT_VERSION`,
   `MIN_SUPPORTED_SETTLEMENT_VERSION` and `settlement_version_is_supported`
   describe which payment rule set a build settles under, tracked separately
