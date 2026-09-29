@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **A pointer state at `counter == u64::MAX` is final.** `PointerState::replaces`
+  gains a rule ahead of the other two: nothing replaces a final state, not even
+  another final state with smaller target bytes. Below the final counter the
+  order is unchanged. This is what makes ownership transferable by redirection:
+  the owner signs one last state pointing at a pointer the new owner holds the
+  key to, every reader of the address is redirected there, and the former owner
+  has no move left. Previously a former owner could grind a smaller target at
+  the same counter and take the address back.
+
+  The cost is that two *different* final states are unordered, so a node keeps
+  whichever it took first. That fork can only be made by the owner, only by
+  racing two final states to different nodes, and only while no node holds a
+  final state: once one does, no node that holds it will take another. Clients
+  decide between the two sides by how many of the close group hold each (see
+  `ADR-0018` in `ant-node`).
+
+  Nodes and clients must agree on this rule; a node on the previous rule still
+  lets a smaller-target final state displace the first one.
+
 ### Added
+
+- `FINAL_COUNTER`, `Pointer::finalize`, `Pointer::transfer_to` and
+  `Pointer::transferred_to` / `PointerState::transferred_to`: sign and recognise
+  the final state that hands a pointer's address over to another pointer.
+  `finalize` refuses to sign past a record that is already final, since a second
+  final state is the one way to fork a pointer. `PointerState::is_terminal`
+  mirrors `Pointer::is_terminal`.
 
 - **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
   5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
