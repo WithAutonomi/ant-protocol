@@ -23,19 +23,21 @@
 //! without touching the record: the owner signs one last state, at the final
 //! counter, pointing at a pointer the new owner holds the key to
 //! ([`Pointer::transfer_to`]). Every reader of the old address is redirected to
-//! the new owner's pointer, the address never changes, and the former owner
-//! has no move left — a larger counter does not exist, and an equal one does
-//! not replace.
+//! the new owner's pointer, the address never changes, and no node that holds
+//! the final state gives it up — a larger counter does not exist, and an equal
+//! one does not replace.
 //!
 //! Two different final states can still exist, because only the owner decides
-//! what it signs: sign two and send them to different nodes at once, and each
-//! node keeps whichever reached it first. That race is a fork, and nothing
-//! local can settle it. What the rule does settle is everything after the
-//! race: once a final state is held, no node holding it will ever take
-//! another, so a fork can no longer be *made* once the network has a final
-//! state — only found, if it was made in the race. Finding it, and reading the
-//! state most of the close group holds, is the client's job. See `ADR-0018` in
-//! `ant-node`.
+//! what it signs, and the rule only stops a node from changing its mind. A
+//! node that holds no final state takes whichever one reaches it first. So the
+//! former owner can fork the pointer by signing a second final state and
+//! getting it to nodes the first has not reached: racing both at once, or
+//! sending the second later. Nothing local can settle that. What the rule does
+//! settle is that no node ever gives up a final state it holds, so a fork
+//! cannot take a final state back from the nodes that hold it; it can only
+//! split the nodes that held none. Finding a fork, and reading the state most of the
+//! close group holds, is the client's job; not taking a rival of a final state
+//! the close group already holds is the node's. See `ADR-0018` in `ant-node`.
 //!
 //! # Encoding
 //!
@@ -503,12 +505,12 @@ impl PointerState {
     /// The cost is that the order is total only below the final counter. Two
     /// different final states are incomparable: neither replaces the other, so
     /// whichever a node took first is the one it keeps. That is the only fork
-    /// this rule allows, and only the owner can make it — by signing two final
-    /// states and racing them to different nodes. Once a node holds a final
-    /// state no arrival can change it, so a second final state can no longer
-    /// displace an established one anywhere; it can only land on a node that
-    /// held none. A reader tells the two sides apart by how many of the close
-    /// group hold each.
+    /// this rule allows, and only the owner can make it — by signing a second
+    /// final state and getting it to nodes the first has not reached, at once
+    /// or later. Once a node holds a final state no arrival can change it, so a
+    /// second final state can never displace an established one; it can only
+    /// land on a node that held no final state. A reader tells the two sides
+    /// apart by how many of the close group hold each.
     ///
     /// Every other pair of distinct states is ordered, and the order is a
     /// strict partial order everywhere: never both ways round, and transitive.
@@ -685,11 +687,13 @@ impl Pointer {
     /// pointer to someone else; a final state pointing at a chunk freezes the
     /// pointer on that chunk for good.
     ///
-    /// Final means final for the signer too. Signing a second final state is
-    /// the one way to fork a pointer: each node keeps whichever of the two it
-    /// saw first. So this refuses to sign past a record that is already final,
-    /// and a caller must read the network's state before finalizing rather
-    /// than after.
+    /// Signing a second final state is the one way to fork a pointer: each
+    /// node keeps whichever of the two it saw first. So this refuses to sign
+    /// past a record that is already final, and a caller must read the
+    /// network's state before finalizing rather than after. That refusal guards
+    /// a caller against a mistake, not the network against the owner: an
+    /// earlier record can be finalized again, and [`Self::sign`] signs any
+    /// counter.
     ///
     /// # Errors
     ///
@@ -1115,7 +1119,7 @@ mod tests {
         assert_eq!(transfer.state().transferred_to(), Some(recipient));
         assert!(transfer.replaces(&current));
 
-        // The former owner has no move left: no later counter exists, and a
+        // Nothing replaces the final state: no later counter exists, and a
         // second final state, however its target sorts, does not replace it.
         assert!(matches!(
             transfer.update(&sk, current.target()),
@@ -1136,6 +1140,32 @@ mod tests {
         )
         .expect("sign");
         assert!(!grinded.replaces(&transfer));
+    }
+
+    #[test]
+    fn an_earlier_record_can_be_finalized_twice_and_neither_replaces_the_other() {
+        // The refusal to finalize a final record is a guard for the caller
+        // that holds it. The owner still holds the earlier record and its key,
+        // so it can sign a second, different final state. The merge rule does
+        // not order the two: a node keeps whichever it took first.
+        let (pk, sk) = keypair(44);
+        let current = Pointer::create(
+            &sk,
+            &pk,
+            PointerTarget::new(PointerTargetKind::Chunk, [1; XORNAME_LEN]),
+        )
+        .expect("create");
+        let to_a = current.transfer_to(&sk, [0xA; XORNAME_LEN]).expect("first");
+        let to_b = current
+            .transfer_to(&sk, [0xB; XORNAME_LEN])
+            .expect("second");
+        assert_ne!(to_a.state().state_id, to_b.state().state_id);
+        assert!(to_a.replaces(&current) && to_b.replaces(&current));
+        assert!(
+            !to_a.replaces(&to_b),
+            "neither final state replaces the other"
+        );
+        assert!(!to_b.replaces(&to_a));
     }
 
     #[test]
