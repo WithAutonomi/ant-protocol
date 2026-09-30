@@ -14,19 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   another final state with smaller target bytes. Below the final counter the
   order is unchanged. This is what makes ownership transferable by redirection:
   the owner signs one last state pointing at a pointer the new owner holds the
-  key to, every reader of the address is redirected there, and the former owner
-  has no move left. Previously a former owner could grind a smaller target at
-  the same counter and take the address back.
+  key to, every reader of the address is redirected there, and no node that
+  holds that state gives it up. Previously a former owner could grind a smaller
+  target at the same counter and take the address back from every node.
 
   The cost is that two *different* final states are unordered, so a node keeps
-  whichever it took first. That fork can only be made by the owner, only by
-  racing two final states to different nodes, and only while no node holds a
-  final state: once one does, no node that holds it will take another. Clients
-  decide between the two sides by how many of the close group hold each (see
+  whichever it took first. That fork can only be made by the owner, by signing
+  a second final state and getting it to nodes the first has not reached, at
+  once or later. It cannot take the address back from a node that holds the
+  first. Clients decide between the two sides by how many of the close group
+  hold each, and nodes look for a rival before taking a final state (see
   `ADR-0018` in `ant-node`).
 
   Nodes and clients must agree on this rule; a node on the previous rule still
-  lets a smaller-target final state displace the first one.
+  lets a smaller-target final state displace the first one. Nothing on the
+  wire tells the two rules apart: the pointer format version is still 1.
 
 ### Added
 
@@ -34,8 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `Pointer::transferred_to` / `PointerState::transferred_to`: sign and recognise
   the final state that hands a pointer's address over to another pointer.
   `finalize` refuses to sign past a record that is already final, since a second
-  final state is the one way to fork a pointer. `PointerState::is_terminal`
-  mirrors `Pointer::is_terminal`.
+  final state is the one way to fork a pointer. That guards a caller against a
+  mistake, not the network against the owner, who can still finalize an
+  earlier record again. `PointerState::is_terminal` mirrors
+  `Pointer::is_terminal`.
 
 - **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
   5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
