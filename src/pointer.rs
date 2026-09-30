@@ -504,8 +504,11 @@ impl PointerState {
     ///
     /// The cost is that the order is total only below the final counter. Two
     /// different final states are incomparable: neither replaces the other, so
-    /// whichever a node took first is the one it keeps. That is the only fork
-    /// this rule allows, and only the owner can make it — by signing a second
+    /// whichever a node took first is the one it keeps. That is the only
+    /// conflict this rule leaves unordered, and so the only fork no later
+    /// state heals; a conflict at a lower counter is ordered by target bytes
+    /// and replaced by any later counter. Only the owner can make it — by
+    /// signing a second
     /// final state and getting it to nodes the first has not reached, at once
     /// or later. Once a node holds a final state no arrival can change it, so a
     /// second final state can never displace an established one; it can only
@@ -685,7 +688,7 @@ impl Pointer {
     /// it — not a later update, which cannot exist, and not another final
     /// state, which does not replace. Use [`Self::transfer_to`] to hand the
     /// pointer to someone else; a final state pointing at a chunk freezes the
-    /// pointer on that chunk for good.
+    /// pointer on that chunk at every node that holds it.
     ///
     /// Signing a second final state is the one way to fork a pointer: each
     /// node keeps whichever of the two it saw first. So this refuses to sign
@@ -714,10 +717,13 @@ impl Pointer {
     /// pointer at `recipient`.
     ///
     /// The owner key cannot change, but what the address resolves to can be
-    /// handed over for good: the final state points at a pointer the new owner
-    /// holds the key to, so every reader of this address is redirected there
-    /// and only the new owner can move it on. The address readers use does not
-    /// change.
+    /// handed over: the final state points at a pointer the new owner holds
+    /// the key to, so a reader of this address is redirected there by every
+    /// node that holds this state, and from there only the new owner moves it
+    /// on. It is not exclusive: the former owner can still finalize an earlier
+    /// record towards someone else, and a node that holds neither takes
+    /// whichever reaches it first (see [`Self::finalize`]). The address readers
+    /// use does not change.
     ///
     /// `recipient` should be a pointer that exists, and one whose owner uses
     /// it only for this address: a pointer's address derives from its owner
@@ -1179,7 +1185,8 @@ mod tests {
         let forwarding = Pointer::sign(&sk, &pk, FINAL_COUNTER - 1, forward).expect("sign");
         assert_eq!(forwarding.transferred_to(), None);
 
-        // A final chunk target freezes the pointer; nobody receives it.
+        // A final chunk target freezes the pointer at the nodes that hold it;
+        // nobody receives it.
         let frozen = Pointer::sign(&sk, &pk, FINAL_COUNTER, chunk).expect("sign");
         assert_eq!(frozen.transferred_to(), None);
 
@@ -1359,7 +1366,7 @@ mod tests {
     }
 
     #[test]
-    fn the_rule_is_a_strict_order_so_no_fold_depends_on_arrival_order() {
+    fn the_rule_is_a_strict_order_so_only_final_states_depend_on_arrival_order() {
         // Nodes and clients both pick a winner by folding `replaces` over
         // whatever arrives. That fold gives the same answer whatever the order
         // exactly when the rule is a strict total order on one address: never
