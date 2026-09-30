@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   another final state with smaller target bytes. Below the final counter the
   order is unchanged. This is what makes ownership transferable by redirection:
   the owner signs one last state pointing at a pointer the new owner holds the
-  key to, every reader of the address is redirected there, and no node that
-  holds that state gives it up. Previously a former owner could grind a smaller
+  key to, a reader of the address is redirected there by every node that holds
+  that state, and no node that holds it gives it up. Previously a former owner could grind a smaller
   target at the same counter and take the address back from every node.
 
   The cost is that two *different* final states are unordered, so a node keeps
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `Pointer::transferred_to` / `PointerState::transferred_to`: sign and recognise
   the final state that hands a pointer's address over to another pointer.
   `finalize` refuses to sign past a record that is already final, since a second
-  final state is the one way to fork a pointer. That guards a caller against a
+  final state is the one way to fork a pointer for good. That guards a caller against a
   mistake, not the network against the owner, who can still finalize an
   earlier record again. `PointerState::is_terminal` mirrors
   `Pointer::is_terminal`.

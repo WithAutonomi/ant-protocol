@@ -22,10 +22,10 @@
 //! even another one at `u64::MAX`. That is what makes ownership transferable
 //! without touching the record: the owner signs one last state, at the final
 //! counter, pointing at a pointer the new owner holds the key to
-//! ([`Pointer::transfer_to`]). Every reader of the old address is redirected to
-//! the new owner's pointer, the address never changes, and no node that holds
-//! the final state gives it up — a larger counter does not exist, and an equal
-//! one does not replace.
+//! ([`Pointer::transfer_to`]). A reader of the old address is redirected to the
+//! new owner's pointer by every node that holds that final state, the address
+//! never changes, and no node that holds the final state gives it up — a
+//! larger counter does not exist, and an equal one does not replace.
 //!
 //! Two different final states can still exist, because only the owner decides
 //! what it signs, and the rule only stops a node from changing its mind. A
@@ -690,8 +690,9 @@ impl Pointer {
     /// pointer to someone else; a final state pointing at a chunk freezes the
     /// pointer on that chunk at every node that holds it.
     ///
-    /// Signing a second final state is the one way to fork a pointer: each
-    /// node keeps whichever of the two it saw first. So this refuses to sign
+    /// Signing a second final state is the one way to fork a pointer for
+    /// good: each node keeps whichever of the two it saw first, and no later
+    /// state heals it, where a fork at a lower counter is. So this refuses to sign
     /// past a record that is already final, and a caller must read the
     /// network's state before finalizing rather than after. That refusal guards
     /// a caller against a mistake, not the network against the owner: an
