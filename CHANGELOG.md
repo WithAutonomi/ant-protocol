@@ -54,10 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   A quote is paid against `state_id = BLAKE3::derive_key("autonomi.pointer.state.v1", body)`,
   not the address: the address is stable for the pointer's life, so paying
-  against it would make every update after the first free. The merge rule is a
-  larger counter first, then smaller target bytes. The counter orders states
-  rather than metering them: any paid state that beats the held one is taken,
-  so a counter may skip and a fork at one counter is healed by any later one.
+  against it would make every update after the first free. Below
+  `FINAL_COUNTER` the merge rule is a larger counter first, then smaller target
+  bytes. The counter orders states rather than metering them: any paid state
+  that beats the held one is taken, so a counter may skip and a fork at one
+  counter below the final one is healed by any later one. A state at
+  `FINAL_COUNTER` is the exception (see Changed above): nothing replaces it,
+  and two different ones are never healed.
 
 - `ChunkMessageBody::{PointerPutRequest, PointerPutResponse, PointerGetRequest,
   PointerGetResponse}`, appended after every existing variant so the
