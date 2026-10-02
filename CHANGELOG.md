@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   order is unchanged. This is what makes ownership transferable by redirection:
   the owner signs one last state pointing at a pointer the new owner holds the
   key to, a reader of the address is redirected there by every node that holds
-  that state, and no node that holds it gives it up. Previously a former owner could grind a smaller
+  that state, and no node that holds it gives it up. Under the rule published
+  in 3.1.0, which `ant-node` 0.21.0 runs, a former owner could grind a smaller
   target at the same counter and take the address back from every node.
 
   The cost is that two *different* final states are unordered, so a node keeps
@@ -26,9 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   hold each, and nodes look for a rival before taking a final state (see
   `ADR-0018` in `ant-node`).
 
-  Nodes and clients must agree on this rule; a node on the previous rule still
-  lets a smaller-target final state displace the first one. Nothing on the
-  wire tells the two rules apart: the pointer format version is still 1.
+  Nodes and clients must agree on this rule; a node on the 3.1.0 rule still
+  lets a smaller-target final state displace the first one, so while a network
+  runs both, the same records can settle differently on different nodes.
+  Nothing on the wire tells the two rules apart: the pointer format version is
+  still 1.
 
 ### Added
 
