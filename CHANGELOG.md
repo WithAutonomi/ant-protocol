@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Get-or-closer request** (ant-node ADR-0020): Kademlia's `FIND_VALUE`
+  for chunks. `ChunkMessageBody::{GetOrCloserRequest, GetOrCloserResponse}`
+  carry `ChunkGetOrCloserRequest` and `ChunkGetOrCloserResponse`. A node that
+  holds the chunk answers `Found` with it; one that does not answers `Closer`
+  with its closest known peers. Those peers are an opaque payload that
+  saorsa-core encodes and checks as a `FIND_NODE` answer. The variants are
+  appended after every existing one, so older discriminants keep their wire
+  values.
+- `GET_OR_CLOSER_AGENT_TOKEN` and `advertises_get_or_closer`: a node built
+  before the request drops it without a reply, so a client sends it only to
+  a peer whose user agent carries this token.
+
+
 - **Pointers** (`pointer`): a paid, mutable, owner-signed reference. One
   5,303-byte record with the ML-DSA-65 owner key inlined, addressed at
   `BLAKE3::derive_key("autonomi.pointer.address.v1", owner)` — so a pointer is
