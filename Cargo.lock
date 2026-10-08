@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "ant-protocol"
-version = "3.1.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "alloy",
  "blake3",
@@ -4292,9 +4292,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-core"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84923dc4955c42dfad8e06cfc34ef75b8e89d4d2fed048b18b81dc9ebadf790b"
+version = "0.29.0-rc.1"
+source = "git+https://github.com/WithAutonomi/saorsa-core?branch=rc-2026.10.1#b01ca5e19f5b14102961e2ed4821714c870a8d0e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4361,9 +4360,8 @@ dependencies = [
 
 [[package]]
 name = "saorsa-transport"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261ed20ee1ed8555594fef412b428fa20c21d2cbeebfe3f11868c7df9489a410"
+version = "0.38.0-rc.1"
+source = "git+https://github.com/WithAutonomi/saorsa-transport?branch=rc-2026.10.1#f39e45968c976ec81d0234d6f0f133eb75413b26"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4948,7 +4946,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
