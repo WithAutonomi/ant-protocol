@@ -354,7 +354,8 @@ impl ChunkMessage {
     ///
     /// Returns [`ProtocolError::MessageTooLarge`] if the input exceeds the
     /// size limit, or [`ProtocolError::DeserializationFailed`] if postcard
-    /// cannot parse the data.
+    /// cannot parse the data or bytes follow the message's end: a sender
+    /// cannot pad a small message out to the size limit and have it taken.
     pub fn decode(data: &[u8]) -> Result<Self, ProtocolError> {
         if data.len() > MAX_WIRE_MESSAGE_SIZE {
             return Err(ProtocolError::MessageTooLarge {
@@ -362,7 +363,15 @@ impl ChunkMessage {
                 max_size: MAX_WIRE_MESSAGE_SIZE,
             });
         }
-        postcard::from_bytes(data).map_err(|e| ProtocolError::DeserializationFailed(e.to_string()))
+        let (message, rest) = postcard::take_from_bytes(data)
+            .map_err(|e| ProtocolError::DeserializationFailed(e.to_string()))?;
+        if !rest.is_empty() {
+            return Err(ProtocolError::DeserializationFailed(format!(
+                "{} bytes after the end of the message",
+                rest.len()
+            )));
+        }
+        Ok(message)
     }
 }
 
@@ -962,6 +971,22 @@ mod tests {
         assert!(
             matches!(err, ProtocolError::MessageTooLarge { .. }),
             "expected MessageTooLarge, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_decode_rejects_bytes_after_the_message() {
+        let message = ChunkMessage {
+            request_id: 7,
+            body: ChunkMessageBody::GetRequest(ChunkGetRequest::new([3u8; 32])),
+        };
+        let mut bytes = message.encode().unwrap();
+        assert_eq!(ChunkMessage::decode(&bytes).unwrap().request_id, 7);
+        bytes.push(0);
+        let err = ChunkMessage::decode(&bytes).unwrap_err();
+        assert!(
+            matches!(err, ProtocolError::DeserializationFailed(_)),
+            "expected DeserializationFailed, got {err:?}"
         );
     }
 
