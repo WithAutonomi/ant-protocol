@@ -9,6 +9,11 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
+use crate::swarm::{
+    SwarmAnnounceRequest, SwarmAnnounceResponse, SwarmAnswerRequest, SwarmAnswerResponse,
+    SwarmLeaveRequest, SwarmLeaveResponse,
+};
+
 /// Protocol identifier for chunk operations.
 pub const CHUNK_PROTOCOL_ID: &str = "autonomi.ant.chunk.v1";
 
@@ -183,6 +188,24 @@ pub enum ChunkMessageBody {
     PointerGetRequest(PointerGetRequest),
     /// Response to a pointer GET.
     PointerGetResponse(PointerGetResponse),
+    /// Join or stay in a file's swarm room, hand over WebRTC offers and
+    /// collect signals ([`crate::swarm`]).
+    ///
+    /// Appended after every existing variant for the reason given on
+    /// [`Self::QuoteRequestV2`]: a node built before swarms existed rejects it
+    /// cleanly as an unknown discriminant, and the client falls back to
+    /// fetching from nodes alone.
+    SwarmAnnounceRequest(SwarmAnnounceRequest),
+    /// Response to a swarm announce.
+    SwarmAnnounceResponse(SwarmAnnounceResponse),
+    /// Answer an offer the node delivered.
+    SwarmAnswerRequest(SwarmAnswerRequest),
+    /// Response to a swarm answer.
+    SwarmAnswerResponse(SwarmAnswerResponse),
+    /// Leave a swarm room.
+    SwarmLeaveRequest(SwarmLeaveRequest),
+    /// Response to a swarm leave.
+    SwarmLeaveResponse(SwarmLeaveResponse),
 }
 
 // =============================================================================
@@ -331,7 +354,8 @@ impl ChunkMessage {
     ///
     /// Returns [`ProtocolError::MessageTooLarge`] if the input exceeds the
     /// size limit, or [`ProtocolError::DeserializationFailed`] if postcard
-    /// cannot parse the data.
+    /// cannot parse the data or bytes follow the message's end: a sender
+    /// cannot pad a small message out to the size limit and have it taken.
     pub fn decode(data: &[u8]) -> Result<Self, ProtocolError> {
         if data.len() > MAX_WIRE_MESSAGE_SIZE {
             return Err(ProtocolError::MessageTooLarge {
@@ -339,7 +363,15 @@ impl ChunkMessage {
                 max_size: MAX_WIRE_MESSAGE_SIZE,
             });
         }
-        postcard::from_bytes(data).map_err(|e| ProtocolError::DeserializationFailed(e.to_string()))
+        let (message, rest) = postcard::take_from_bytes(data)
+            .map_err(|e| ProtocolError::DeserializationFailed(e.to_string()))?;
+        if !rest.is_empty() {
+            return Err(ProtocolError::DeserializationFailed(format!(
+                "{} bytes after the end of the message",
+                rest.len()
+            )));
+        }
+        Ok(message)
     }
 }
 
@@ -790,6 +822,7 @@ impl std::error::Error for ProtocolError {}
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::swarm::{SwarmRefusal, SwarmSignal};
 
     #[test]
     fn test_put_request_encode_decode() {
@@ -938,6 +971,22 @@ mod tests {
         assert!(
             matches!(err, ProtocolError::MessageTooLarge { .. }),
             "expected MessageTooLarge, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_decode_rejects_bytes_after_the_message() {
+        let message = ChunkMessage {
+            request_id: 7,
+            body: ChunkMessageBody::GetRequest(ChunkGetRequest::new([3u8; 32])),
+        };
+        let mut bytes = message.encode().unwrap();
+        assert_eq!(ChunkMessage::decode(&bytes).unwrap().request_id, 7);
+        bytes.push(0);
+        let err = ChunkMessage::decode(&bytes).unwrap_err();
+        assert!(
+            matches!(err, ProtocolError::DeserializationFailed(_)),
+            "expected DeserializationFailed, got {err:?}"
         );
     }
 
@@ -1151,6 +1200,100 @@ mod tests {
             )),
             9,
         );
+    }
+
+    /// The swarm variants come after pointers (10 to 13), so a node that
+    /// predates them rejects them as unknown and misreads nothing.
+    #[test]
+    fn swarm_variants_are_appended_after_pointers() {
+        let room = [0x33; 32];
+        assert_eq!(
+            wire_discriminant(ChunkMessageBody::PointerGetResponse(
+                PointerGetResponse::NotFound { address: room }
+            )),
+            13,
+        );
+        let bodies = [
+            ChunkMessageBody::SwarmAnnounceRequest(SwarmAnnounceRequest {
+                room,
+                node: [3; 32],
+                membership: 1,
+                offers: Vec::new(),
+                wait_ms: 0,
+            }),
+            ChunkMessageBody::SwarmAnnounceResponse(SwarmAnnounceResponse::Refused(
+                SwarmRefusal::Busy,
+            )),
+            ChunkMessageBody::SwarmAnswerRequest(SwarmAnswerRequest {
+                room,
+                node: [3; 32],
+                to: [1; 16],
+                offer_id: [2; 16],
+                sdp: String::new(),
+            }),
+            ChunkMessageBody::SwarmAnswerResponse(SwarmAnswerResponse::Delivered),
+            ChunkMessageBody::SwarmLeaveRequest(SwarmLeaveRequest {
+                room,
+                node: [3; 32],
+                membership: 1,
+            }),
+            ChunkMessageBody::SwarmLeaveResponse(SwarmLeaveResponse::Left),
+        ];
+        let indices: Vec<u8> = bodies.into_iter().map(wire_discriminant).collect();
+        assert_eq!(indices, vec![14, 15, 16, 17, 18, 19]);
+    }
+
+    #[test]
+    fn a_swarm_announce_round_trips() {
+        let message = ChunkMessage {
+            request_id: 7,
+            body: ChunkMessageBody::SwarmAnnounceResponse(SwarmAnnounceResponse::Joined {
+                member: [4; 16],
+                members: 3,
+                offers_delivered: 2,
+                inbox: vec![
+                    SwarmSignal::Offer {
+                        from: [5; 16],
+                        offer_id: [6; 16],
+                        sdp: "v=0 offer".into(),
+                    },
+                    SwarmSignal::Answer {
+                        from: [7; 16],
+                        offer_id: [8; 16],
+                        sdp: "v=0 answer".into(),
+                    },
+                ],
+                ice_servers: vec!["stun:203.0.113.5:10000".into()],
+            }),
+        };
+        let decoded = ChunkMessage::decode(&message.encode().expect("encode")).expect("decode");
+        assert_eq!(decoded.request_id, 7);
+        match decoded.body {
+            ChunkMessageBody::SwarmAnnounceResponse(response) => {
+                assert_eq!(
+                    response,
+                    SwarmAnnounceResponse::Joined {
+                        member: [4; 16],
+                        members: 3,
+                        offers_delivered: 2,
+                        inbox: vec![
+                            SwarmSignal::Offer {
+                                from: [5; 16],
+                                offer_id: [6; 16],
+                                sdp: "v=0 offer".into(),
+                            },
+                            SwarmSignal::Answer {
+                                from: [7; 16],
+                                offer_id: [8; 16],
+                                sdp: "v=0 answer".into(),
+                            },
+                        ],
+                        ice_servers: vec!["stun:203.0.113.5:10000".into()],
+                    }
+                );
+            }
+            other => panic!("decoded {other:?}"),
+        }
     }
 
     /// `ProtocolError` rides inside quote responses, so its variants carry the

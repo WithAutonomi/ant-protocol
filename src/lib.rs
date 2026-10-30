@@ -17,6 +17,8 @@
 //!   [`chunk_protocol::send_and_await_chunk_response`] that both the
 //!   client and node test harness use to exchange chunk messages on
 //!   a `saorsa-core::P2PNode`.
+//! - [`swarm`] — messages that let clients downloading the same file find
+//!   each other through the nodes closest to it and share its records.
 //! - [`payment`] — on-wire payment artifacts: `PaymentProof`,
 //!   `SingleNodePayment` (with `pay` and `verify` co-located), and
 //!   ML-DSA-65 verification of quotes and merkle candidates.
@@ -50,6 +52,7 @@ pub mod error;
 pub mod logging;
 pub mod payment;
 pub mod pointer;
+pub mod swarm;
 
 // =============================================================================
 // Public surface re-exports
@@ -83,6 +86,14 @@ pub use pointer::{
     pointer_address, state_id_for_body, ParsedPointer, Pointer, PointerError, PointerState,
     PointerTarget, PointerTargetKind, DATA_TYPE_POINTER, FINAL_COUNTER, POINTER_BODY_LEN,
     POINTER_FORMAT_VERSION, POINTER_WIRE_LEN, TARGET_WIRE_LEN,
+};
+pub use swarm::{
+    canonical_ip, constrain_swarm_sdp, is_global_ip, MemberId, Membership, NodeId, OfferId,
+    RoomKey, SwarmAnnounceRequest, SwarmAnnounceResponse, SwarmAnswerRequest, SwarmAnswerResponse,
+    SwarmLeaveRequest, SwarmLeaveResponse, SwarmOffer, SwarmRefusal, SwarmSignal,
+    MAX_SWARM_CANDIDATES, MAX_SWARM_ERROR_BYTES, MAX_SWARM_ICE_SERVERS, MAX_SWARM_ICE_SERVER_BYTES,
+    MAX_SWARM_INBOX, MAX_SWARM_OFFERS, MAX_SWARM_REPLY_SDP_BYTES, MAX_SWARM_REQUEST_BYTES,
+    MAX_SWARM_SDP_BYTES, MAX_SWARM_WAIT_MS, SWARM_RENDEZVOUS_NODES, SWARM_SIGNAL_TTL_MS,
 };
 
 // =============================================================================
