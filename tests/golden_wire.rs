@@ -39,8 +39,8 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, UNIX_EPOCH};
 
 use ant_protocol::evm::{
@@ -76,15 +76,15 @@ const VECTOR_FILE: &str = "tests/golden/wire-v5.txt";
 /// Set to append vectors that are missing from [`VECTOR_FILE`].
 const WRITE_ENV: &str = "ANT_PROTOCOL_WRITE_GOLDEN";
 
-/// Serializes appends when the tests run in parallel.
+/// Held for every read and append in write mode, when the tests run in parallel.
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 fn vector_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(VECTOR_FILE)
 }
 
-fn load_vectors() -> BTreeMap<String, Vec<u8>> {
-    let text = std::fs::read_to_string(vector_path()).unwrap_or_default();
+fn load_vectors(path: &Path) -> BTreeMap<String, Vec<u8>> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
     text.lines()
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
@@ -104,20 +104,35 @@ fn load_vectors() -> BTreeMap<String, Vec<u8>> {
 /// `fresh` is what this build encodes. It's only used when the vector is
 /// missing: printed in the failure, or appended under [`WRITE_ENV`].
 fn golden(name: &str, fresh: &[u8]) -> Vec<u8> {
-    if let Some(bytes) = load_vectors().remove(name) {
+    golden_in(
+        &vector_path(),
+        name,
+        fresh,
+        std::env::var_os(WRITE_ENV).is_some(),
+    )
+}
+
+/// [`golden`] against the vector file at `path`; with `write`, a missing vector
+/// is appended.
+///
+/// In write mode the read and the append both happen under [`WRITE_LOCK`]:
+/// another test may be appending a line, and an unlocked read could see it
+/// half-written.
+fn golden_in(path: &Path, name: &str, fresh: &[u8], write: bool) -> Vec<u8> {
+    // A test that panicked while holding the lock left the file intact, so a
+    // poisoned lock is still safe to use.
+    let _guard = write.then(|| WRITE_LOCK.lock().unwrap_or_else(PoisonError::into_inner));
+    if let Some(bytes) = load_vectors(path).remove(name) {
         return bytes;
     }
-    if std::env::var_os(WRITE_ENV).is_some() {
-        let _guard = WRITE_LOCK.lock().unwrap();
-        if let Some(bytes) = load_vectors().remove(name) {
-            return bytes;
-        }
+    if write {
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(vector_path())
+            .open(path)
             .unwrap();
-        writeln!(file, "{name} {}", hex::encode(fresh)).unwrap();
+        file.write_all(format!("{name} {}\n", hex::encode(fresh)).as_bytes())
+            .unwrap();
         return fresh.to_vec();
     }
     panic!(
@@ -832,4 +847,54 @@ fn pointer_record() {
         decoded.state_id(),
         state_id_for_body(&golden[..POINTER_BODY_LEN])
     );
+}
+
+// =============================================================================
+// Regeneration mode
+// =============================================================================
+
+/// `ANT_PROTOCOL_WRITE_GOLDEN=1` runs every test in parallel, each reading the
+/// vector file and appending what it's missing. No reader may see another
+/// test's line half-written, and each vector must be written exactly once.
+/// Runs against a temporary file, never the real one.
+#[test]
+fn parallel_regeneration_is_consistent() {
+    // Many short appends and fast reads give a racing read plenty of chances
+    // to land between the writes of one line. A race test can only be
+    // probabilistic: at these settings the round-1 code (first read outside
+    // the lock, multi-write append) failed about 1 run in 4 on Linux, with the
+    // reported "`r` is not a `name hex` line"; the fixed code never did, and
+    // takes about 2 s.
+    const THREADS: usize = 32;
+    const VECTORS: usize = 150;
+    const REPEAT: usize = 1;
+    let path = std::env::temp_dir().join(format!(
+        "ant-protocol-golden-regen-{}.txt",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+    let vector = |i: usize| i.to_le_bytes().repeat(REPEAT);
+    let names: Vec<String> = (0..VECTORS)
+        .map(|i| format!("regen.vector_{i:04}"))
+        .collect();
+
+    std::thread::scope(|scope| {
+        for start in 0..THREADS {
+            let (path, names) = (&path, &names);
+            scope.spawn(move || {
+                // Each thread walks all vectors from a different starting point.
+                for i in (0..VECTORS).map(|k| (k + start * 3) % VECTORS) {
+                    assert_eq!(golden_in(path, &names[i], &vector(i), true), vector(i));
+                }
+            });
+        }
+    });
+
+    let lines = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(lines.lines().count(), VECTORS, "each vector written once");
+    let vectors = load_vectors(&path);
+    for (i, name) in names.iter().enumerate() {
+        assert_eq!(vectors[name], vector(i), "{name}");
+    }
+    std::fs::remove_file(&path).unwrap();
 }
