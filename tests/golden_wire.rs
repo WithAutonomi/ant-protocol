@@ -25,7 +25,8 @@
 //! is a deliberate, coordinated cutover, delete the affected lines from the
 //! vector file and run the tests once with `ANT_PROTOCOL_WRITE_GOLDEN=1`, which
 //! appends missing vectors and never overwrites existing ones, and say so in
-//! the changelog.
+//! the changelog. Run it as a single `cargo test` invocation: appends are
+//! serialized between the tests' threads in one process, not across processes.
 //!
 //! Signature and public-key fields inside quotes, candidates and commitments
 //! are short stand-in bytes. The wire carries them as opaque byte strings, so
@@ -868,11 +869,20 @@ fn parallel_regeneration_is_consistent() {
     const THREADS: usize = 32;
     const VECTORS: usize = 150;
     const REPEAT: usize = 1;
-    let path = std::env::temp_dir().join(format!(
+    /// Removes the temporary vector file however the test ends.
+    struct TempFile(PathBuf);
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    let file = TempFile(std::env::temp_dir().join(format!(
         "ant-protocol-golden-regen-{}.txt",
         std::process::id()
-    ));
-    let _ = std::fs::remove_file(&path);
+    )));
+    let path = &file.0;
+    let _ = std::fs::remove_file(path);
     let vector = |i: usize| i.to_le_bytes().repeat(REPEAT);
     let names: Vec<String> = (0..VECTORS)
         .map(|i| format!("regen.vector_{i:04}"))
@@ -880,7 +890,7 @@ fn parallel_regeneration_is_consistent() {
 
     std::thread::scope(|scope| {
         for start in 0..THREADS {
-            let (path, names) = (&path, &names);
+            let names = &names;
             scope.spawn(move || {
                 // Each thread walks all vectors from a different starting point.
                 for i in (0..VECTORS).map(|k| (k + start * 3) % VECTORS) {
@@ -890,11 +900,10 @@ fn parallel_regeneration_is_consistent() {
         }
     });
 
-    let lines = std::fs::read_to_string(&path).unwrap();
+    let lines = std::fs::read_to_string(path).unwrap();
     assert_eq!(lines.lines().count(), VECTORS, "each vector written once");
-    let vectors = load_vectors(&path);
+    let vectors = load_vectors(path);
     for (i, name) in names.iter().enumerate() {
         assert_eq!(vectors[name], vector(i), "{name}");
     }
-    std::fs::remove_file(&path).unwrap();
 }

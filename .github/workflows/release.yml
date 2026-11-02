@@ -52,7 +52,9 @@ jobs:
           # override step outputs.
           VERSION_REGEX="^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$"
           if ! [[ "$VERSION" =~ $VERSION_REGEX ]]; then
-            echo "::error::Invalid version format: $VERSION (expected SemVer-shaped vX.Y.Z[-prerelease][+build])"
+            # Don't echo the rejected value: it's dispatch input, and text after a
+            # newline in it could be read as another workflow command.
+            echo "::error::Invalid version format (expected SemVer-shaped vX.Y.Z[-prerelease][+build])"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
