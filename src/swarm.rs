@@ -130,9 +130,12 @@ pub type NodeId = [u8; 32];
 /// ended: the client carries on in it over a new connection.
 pub type Membership = u64;
 
-/// The room for a file: the key every client downloading it derives the same
-/// way. For a public file this is its address (that of its `DataMap`); a
-/// client that only has a `DataMap` derives it from the `DataMap`'s content.
+/// The room for a file: the key every client reading it derives the same
+/// way, the address its root `DataMap` would have as a public record (the
+/// content address of the root map encoded with `rmp_serde`), once a shrunk
+/// map is resolved to its root. For a public file published with its root map,
+/// this is the file's address; for one published with a shrunk map, it is
+/// not.
 pub type RoomKey = XorName;
 
 /// A WebRTC offer for whichever member the node picks.
