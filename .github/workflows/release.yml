@@ -34,46 +34,53 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version
+      - name: Extract and validate version
         id: version
+        # The dispatch input reaches the script through env, never through
+        # expression interpolation into the script text.
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Validate before anything is written to $GITHUB_OUTPUT, so a
+          # malformed input (e.g. one containing a newline) can't add or
+          # override step outputs.
+          VERSION_REGEX="^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$"
+          if ! [[ "$VERSION" =~ $VERSION_REGEX ]]; then
+            # Don't echo the rejected value: it's dispatch input, and text after a
+            # newline in it could be read as another workflow command.
+            echo "::error::Invalid version format (expected SemVer-shaped vX.Y.Z[-prerelease][+build])"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           VERSION_NUMBER="${VERSION#v}"
-          echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+          echo "version_number=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
 
           # Any SemVer pre-release identifier (anything after a `-`) counts
           # as a pre-release. Previously this only matched `alpha|beta|rc`
           # and silently treated `v2.0.0-pre`, `-dev`, `-snapshot`, numeric
           # pre-releases, etc. as stable.
           if [[ "$VERSION_NUMBER" == *-* ]]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
           echo "Version: $VERSION (number: $VERSION_NUMBER)"
 
-      - name: Validate version format
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          VERSION_REGEX="^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$"
-          if ! [[ "$VERSION" =~ $VERSION_REGEX ]]; then
-            echo "::error::Invalid version format: $VERSION (expected SemVer-shaped vX.Y.Z[-prerelease][+build])"
-            exit 1
-          fi
-
       - name: Check Cargo.toml version
+        env:
+          EXPECTED: ${{ steps.version.outputs.version_number }}
         run: |
           # Use cargo metadata rather than grep so quoting style / stray
           # `version` keys in sub-tables can't trick the check.
           CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys;print(json.load(sys.stdin)["packages"][0]["version"])')
-          EXPECTED="${{ steps.version.outputs.version_number }}"
           if [[ "$CARGO_VERSION" != "$EXPECTED" ]]; then
             echo "::error::Cargo.toml version mismatch"
             echo "::error::Expected $EXPECTED but found $CARGO_VERSION"
