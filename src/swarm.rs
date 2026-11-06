@@ -764,22 +764,19 @@ pub fn is_global_ip(ip: IpAddr) -> bool {
 }
 
 /// Whether `ip` is an address of a network of its own: private use
-/// (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), shared (`100.64.0.0/10`),
-/// link-local (`169.254.0.0/16`, `fe80::/10`), loopback (`127.0.0.0/8`, `::1`)
-/// or unique local (`fc00::/7`). An IPv4-mapped IPv6 address is judged as
-/// IPv4. An address that is neither local nor global ([`is_global_ip`]),
-/// such as documentation, benchmarking, reserved, Teredo or NAT64's local-use
-/// prefix, is on no network a reader should be pointed at.
+/// (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local
+/// (`169.254.0.0/16`, `fe80::/10`), loopback (`127.0.0.0/8`, `::1`) or unique
+/// local (`fc00::/7`). An IPv4-mapped IPv6 address is judged as IPv4. Shared
+/// address space (`100.64.0.0/10`, RFC 6598) is not: a provider numbers the
+/// subscribers behind its carrier-grade NAT in it, so two hosts there need
+/// not share a network. An address that is neither local nor global
+/// ([`is_global_ip`]), such as shared, documentation, benchmarking, reserved,
+/// Teredo or NAT64's local-use prefix, is on no network a reader should be
+/// pointed at.
 #[must_use]
 pub fn is_local_ip(ip: IpAddr) -> bool {
     match canonical_ip(ip) {
-        IpAddr::V4(v4) => {
-            let [first, second, ..] = v4.octets();
-            v4.is_private()
-                || (first == 100 && (64..128).contains(&second))
-                || v4.is_link_local()
-                || v4.is_loopback()
-        }
+        IpAddr::V4(v4) => v4.is_private() || v4.is_link_local() || v4.is_loopback(),
         IpAddr::V6(v6) => v6.is_loopback() || LINK_LOCAL.contains(v6) || UNIQUE_LOCAL.contains(v6),
     }
 }
@@ -966,7 +963,8 @@ a=end-of-candidates"
         // Either side of the IPv4 IETF protocol assignments, 192.0.0.0/24.
         "191.255.255.255",
         "192.0.1.0",
-        // Either side of each local IPv4 prefix.
+        // Either side of each local IPv4 prefix, and of shared address space
+        // (100.64.0.0/10), which is neither.
         "9.255.255.255",
         "11.0.0.0",
         "172.15.255.255",
@@ -989,8 +987,6 @@ a=end-of-candidates"
         "172.31.255.255",
         "192.168.0.0",
         "192.168.255.255",
-        "100.64.0.0",
-        "100.127.255.255",
         "169.254.0.0",
         "169.254.255.255",
         "127.0.0.0",
@@ -1002,7 +998,6 @@ a=end-of-candidates"
         "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
         "::ffff:10.1.2.3",
         "::ffff:192.168.1.1",
-        "::ffff:100.64.0.1",
         "::ffff:169.254.1.1",
         "::ffff:127.0.0.1",
     ];
@@ -1050,6 +1045,12 @@ a=end-of-candidates"
         "2001:4:113::",
         "2001:1f:ffff:ffff:ffff:ffff:ffff:ffff",
         "2001:40::",
+        // Shared address space (carrier-grade NAT), first and last, and
+        // IPv4-mapped.
+        "100.64.0.0",
+        "100.64.0.1",
+        "100.127.255.255",
+        "::ffff:100.64.0.1",
         // NAT64's local-use prefix, first and last, and the neighbours of
         // both NAT64 prefixes.
         "64:ff9b:1::",
