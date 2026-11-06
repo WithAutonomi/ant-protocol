@@ -89,12 +89,13 @@ pub use pointer::{
     POINTER_FORMAT_VERSION, POINTER_WIRE_LEN, TARGET_WIRE_LEN,
 };
 pub use swarm::{
-    canonical_ip, constrain_swarm_sdp, is_global_ip, MemberId, Membership, NodeId, OfferId,
-    RoomKey, SwarmAnnounceRequest, SwarmAnnounceResponse, SwarmAnswerRequest, SwarmAnswerResponse,
-    SwarmLeaveRequest, SwarmLeaveResponse, SwarmOffer, SwarmRefusal, SwarmSignal,
-    MAX_SWARM_CANDIDATES, MAX_SWARM_ERROR_BYTES, MAX_SWARM_ICE_SERVERS, MAX_SWARM_ICE_SERVER_BYTES,
-    MAX_SWARM_INBOX, MAX_SWARM_OFFERS, MAX_SWARM_REPLY_SDP_BYTES, MAX_SWARM_REQUEST_BYTES,
-    MAX_SWARM_SDP_BYTES, MAX_SWARM_WAIT_MS, SWARM_RENDEZVOUS_NODES, SWARM_SIGNAL_TTL_MS,
+    canonical_ip, constrain_swarm_sdp, is_global_ip, is_local_ip, MemberId, Membership, NodeId,
+    OfferId, RoomKey, SwarmAnnounceRequest, SwarmAnnounceResponse, SwarmAnswerRequest,
+    SwarmAnswerResponse, SwarmLeaveRequest, SwarmLeaveResponse, SwarmOffer, SwarmRefusal,
+    SwarmSignal, MAX_SWARM_CANDIDATES, MAX_SWARM_ERROR_BYTES, MAX_SWARM_ICE_SERVERS,
+    MAX_SWARM_ICE_SERVER_BYTES, MAX_SWARM_INBOX, MAX_SWARM_OFFERS, MAX_SWARM_REPLY_SDP_BYTES,
+    MAX_SWARM_REQUEST_BYTES, MAX_SWARM_SDP_BYTES, MAX_SWARM_WAIT_MS, SWARM_RENDEZVOUS_NODES,
+    SWARM_SIGNAL_TTL_MS,
 };
 
 // =============================================================================

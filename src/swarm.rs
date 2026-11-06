@@ -41,7 +41,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use serde::de::{self, Deserializer, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
@@ -503,10 +503,10 @@ fn error_fits(error: &ProtocolError) -> Result<(), ProtocolError> {
 
 /// Rewrites a swarm SDP to the ICE candidates its receiver may be asked to
 /// try: UDP candidates on a port, naming either an IP address that is not
-/// unspecified, multicast or broadcast, or a multicast DNS (`.local`) name,
-/// that `keep` accepts (given the IP, or `None` for a name). At most
-/// [`MAX_SWARM_CANDIDATES`] are kept, in order. The result holds no more
-/// memory than its length needs.
+/// unspecified, multicast, broadcast or in a NAT64 prefix, or a multicast DNS
+/// (`.local`) name, that `keep` accepts (given the IP, or `None` for a name).
+/// At most [`MAX_SWARM_CANDIDATES`] are kept, in order. The result holds no
+/// more memory than its length needs.
 ///
 /// An offer or answer comes from another client, which picks its
 /// candidates, and its receiver sends connectivity checks to each of them
@@ -632,6 +632,7 @@ fn candidate_allowed(candidate: &str, keep: &impl Fn(Option<IpAddr>) -> bool) ->
             !ip.is_unspecified()
                 && !ip.is_multicast()
                 && ip != IpAddr::V4(Ipv4Addr::BROADCAST)
+                && !is_nat64_ip(ip)
                 && keep(Some(ip))
         }
         Err(_) => is_mdns_name(address) && keep(None),
@@ -659,41 +660,127 @@ pub fn canonical_ip(ip: IpAddr) -> IpAddr {
     }
 }
 
+/// An IPv6 prefix: an address and how many of its leading bits count.
+struct Prefix(Ipv6Addr, u32);
+
+impl Prefix {
+    fn contains(&self, ip: Ipv6Addr) -> bool {
+        let mask = u128::MAX
+            .checked_shl(128u32.saturating_sub(self.1))
+            .unwrap_or(0);
+        (u128::from(ip) ^ u128::from(self.0)) & mask == 0
+    }
+}
+
+/// Global unicast.
+const GLOBAL_UNICAST: Prefix = Prefix(Ipv6Addr::new(0x2000, 0, 0, 0, 0, 0, 0, 0), 3);
+/// The IETF protocol assignments, Teredo (`2001::/32`) among them.
+const IETF_ASSIGNMENTS: Prefix = Prefix(Ipv6Addr::new(0x2001, 0, 0, 0, 0, 0, 0, 0), 23);
+/// The IETF protocol assignments the registry marks globally reachable:
+/// PCP, TURN and DNS-SD SRP anycast, AMT, AS112-v6, the second version of
+/// ORCHID and drone remote ID entity tags.
+const GLOBAL_IETF_ASSIGNMENTS: [Prefix; 7] = [
+    Prefix(Ipv6Addr::new(0x2001, 1, 0, 0, 0, 0, 0, 1), 128),
+    Prefix(Ipv6Addr::new(0x2001, 1, 0, 0, 0, 0, 0, 2), 128),
+    Prefix(Ipv6Addr::new(0x2001, 1, 0, 0, 0, 0, 0, 3), 128),
+    Prefix(Ipv6Addr::new(0x2001, 3, 0, 0, 0, 0, 0, 0), 32),
+    Prefix(Ipv6Addr::new(0x2001, 4, 0x112, 0, 0, 0, 0, 0), 48),
+    Prefix(Ipv6Addr::new(0x2001, 0x20, 0, 0, 0, 0, 0, 0), 28),
+    Prefix(Ipv6Addr::new(0x2001, 0x30, 0, 0, 0, 0, 0, 0), 28),
+];
+/// Documentation.
+const DOCUMENTATION: [Prefix; 2] = [
+    Prefix(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0), 32),
+    Prefix(Ipv6Addr::new(0x3fff, 0, 0, 0, 0, 0, 0, 0), 20),
+];
+/// NAT64's well-known prefix.
+const NAT64_WELL_KNOWN: Prefix = Prefix(Ipv6Addr::new(0x64, 0xff9b, 0, 0, 0, 0, 0, 0), 96);
+/// NAT64's local-use prefix.
+const NAT64_LOCAL_USE: Prefix = Prefix(Ipv6Addr::new(0x64, 0xff9b, 1, 0, 0, 0, 0, 0), 48);
+/// Link-local unicast.
+const LINK_LOCAL: Prefix = Prefix(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10);
+/// Unique local.
+const UNIQUE_LOCAL: Prefix = Prefix(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 0), 7);
+
+/// Whether `ip` is in a NAT64 prefix (`64:ff9b::/96`, or the local-use
+/// `64:ff9b:1::/48`): an address that stands for an IPv4 address, which a
+/// translator on the receiver's own network sends to for it. A swarm SDP
+/// keeps no such candidate on any network, by policy: it would point readers
+/// at whatever IPv4 address it carries, however `keep` classed it. A client
+/// that a stateless translator numbers in one of these prefixes loses those
+/// host candidates and meets other readers by its others (a server-reflexive
+/// address through the translator is IPv4).
+fn is_nat64_ip(ip: IpAddr) -> bool {
+    matches!(ip, IpAddr::V6(v6) if NAT64_WELL_KNOWN.contains(v6) || NAT64_LOCAL_USE.contains(v6))
+}
+
 /// Whether `ip` is reachable across the internet, as the IANA special-purpose
-/// address registries have it: no address of "this network", private use,
-/// shared (carrier-grade NAT), loopback, link-local, IETF protocol
-/// assignments, documentation, benchmarking, multicast, reserved or
-/// broadcast for IPv4; for IPv6, only global unicast (`2000::/3`) outside
-/// the IETF protocol assignments (`2001::/23`) and documentation
-/// (`2001:db8::/32`, `3fff::/20`). An IPv4-mapped IPv6 address is judged as
-/// IPv4.
+/// address registries mark it. For IPv4 that is none of "this network",
+/// private use, shared (carrier-grade NAT), loopback, link-local, the IETF
+/// protocol assignments (`192.0.0.0/24`, except its PCP and TURN anycast
+/// addresses `192.0.0.9` and `192.0.0.10`), documentation, 6to4 relay
+/// anycast, benchmarking, multicast, reserved or broadcast. For IPv6 it is
+/// NAT64's well-known prefix (`64:ff9b::/96`), and global unicast
+/// (`2000::/3`) outside documentation (`2001:db8::/32`, `3fff::/20`) and the
+/// IETF protocol assignments (`2001::/23`), except for the assignments the
+/// registry marks globally reachable: `2001:1::1`, `2001:1::2` and
+/// `2001:1::3`, `2001:3::/32`, `2001:4:112::/48`, `2001:20::/28` and
+/// `2001:30::/28`. Teredo (`2001::/32`), which the registry leaves
+/// undecided, is not global; 6to4 (`2002::/16`), also undecided, is, so a
+/// node holds it to the sender's own host. An IPv4-mapped IPv6 address is
+/// judged as IPv4.
 #[must_use]
 pub fn is_global_ip(ip: IpAddr) -> bool {
     match canonical_ip(ip) {
         IpAddr::V4(v4) => {
-            let [first, second, third, _] = v4.octets();
-            !(first == 0
-                || first == 10
-                || (first == 100 && (64..128).contains(&second))
-                || first == 127
-                || (first == 169 && second == 254)
-                || (first == 172 && (16..32).contains(&second))
-                || (first == 192 && second == 0 && third == 0)
-                || (first == 192 && second == 0 && third == 2)
-                || (first == 192 && second == 88 && third == 99)
-                || (first == 192 && second == 168)
-                || (first == 198 && (18..20).contains(&second))
-                || (first == 198 && second == 51 && third == 100)
-                || (first == 203 && second == 0 && third == 113)
-                || first >= 224)
+            let [first, second, third, fourth] = v4.octets();
+            (first == 192 && second == 0 && third == 0 && matches!(fourth, 9 | 10))
+                || !(first == 0
+                    || first == 10
+                    || (first == 100 && (64..128).contains(&second))
+                    || first == 127
+                    || (first == 169 && second == 254)
+                    || (first == 172 && (16..32).contains(&second))
+                    || (first == 192 && second == 0 && third == 0)
+                    || (first == 192 && second == 0 && third == 2)
+                    || (first == 192 && second == 88 && third == 99)
+                    || (first == 192 && second == 168)
+                    || (first == 198 && (18..20).contains(&second))
+                    || (first == 198 && second == 51 && third == 100)
+                    || (first == 203 && second == 0 && third == 113)
+                    || first >= 224)
         }
         IpAddr::V6(v6) => {
-            let [first, second, ..] = v6.segments();
-            first & 0xe000 == 0x2000
-                && !(first == 0x2001 && second < 0x0200)
-                && !(first == 0x2001 && second == 0x0db8)
-                && !(first == 0x3fff && second & 0xf000 == 0)
+            let ietf = IETF_ASSIGNMENTS.contains(v6)
+                && !GLOBAL_IETF_ASSIGNMENTS
+                    .iter()
+                    .any(|prefix| prefix.contains(v6));
+            NAT64_WELL_KNOWN.contains(v6)
+                || (GLOBAL_UNICAST.contains(v6)
+                    && !ietf
+                    && !DOCUMENTATION.iter().any(|prefix| prefix.contains(v6)))
         }
+    }
+}
+
+/// Whether `ip` is an address of a network of its own: private use
+/// (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), shared (`100.64.0.0/10`),
+/// link-local (`169.254.0.0/16`, `fe80::/10`), loopback (`127.0.0.0/8`, `::1`)
+/// or unique local (`fc00::/7`). An IPv4-mapped IPv6 address is judged as
+/// IPv4. An address that is neither local nor global ([`is_global_ip`]),
+/// such as documentation, benchmarking, reserved, Teredo or NAT64's local-use
+/// prefix, is on no network a reader should be pointed at.
+#[must_use]
+pub fn is_local_ip(ip: IpAddr) -> bool {
+    match canonical_ip(ip) {
+        IpAddr::V4(v4) => {
+            let [first, second, ..] = v4.octets();
+            v4.is_private()
+                || (first == 100 && (64..128).contains(&second))
+                || v4.is_link_local()
+                || v4.is_loopback()
+        }
+        IpAddr::V6(v6) => v6.is_loopback() || LINK_LOCAL.contains(v6) || UNIQUE_LOCAL.contains(v6),
     }
 }
 
@@ -738,7 +825,7 @@ a=end-of-candidates\r\n";
         // and local ones.
         let own: IpAddr = "8.8.4.7".parse().unwrap();
         let theirs =
-            constrain_swarm_sdp(SDP, |ip| ip.is_none_or(|ip| !is_global_ip(ip) || ip == own));
+            constrain_swarm_sdp(SDP, |ip| ip.is_none_or(|ip| is_local_ip(ip) || ip == own));
         assert_eq!(candidates(&theirs), ["1", "3", "4"]);
         assert_eq!(
             candidates(&constrain_swarm_sdp(SDP, |ip| ip.is_some())),
@@ -833,59 +920,200 @@ a=end-of-candidates"
         );
     }
 
+    /// Addresses the IANA registries mark globally reachable: each prefix's
+    /// first and last address where it changed, and every neighbour of a
+    /// local or not-global prefix that is global.
+    const GLOBAL: &[&str] = &[
+        "8.8.8.8",
+        "1.1.1.1",
+        "2a00:1450:4001::1",
+        "2606:4700::1111",
+        "::ffff:8.8.8.8",
+        // Global unicast's ends, and either side of the documentation
+        // prefixes 2001:db8::/32 and 3fff::/20.
+        "2000::",
+        "3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:db7:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:db9::",
+        "3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "3fff:1000::",
+        // Either side of the IETF protocol assignments, 2001::/23.
+        "2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:200::",
+        // The globally reachable IETF protocol assignments, first and last:
+        // PCP and TURN anycast in both families, DNS-SD SRP anycast, AMT,
+        // AS112-v6, ORCHIDv2 and drone remote ID entity tags.
+        "192.0.0.9",
+        "192.0.0.10",
+        "2001:1::1",
+        "2001:1::2",
+        "2001:1::3",
+        "2001:3::",
+        "2001:3:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:4:112::",
+        "2001:4:112:ffff:ffff:ffff:ffff:ffff",
+        "2001:20::",
+        "2001:2f:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:30::",
+        "2001:3f:ffff:ffff:ffff:ffff:ffff:ffff",
+        // NAT64's well-known prefix, first and last, which stands for public
+        // IPv4 addresses.
+        "64:ff9b::",
+        "64:ff9b::ffff:ffff",
+        // 6to4 and an anycast block outside the IETF assignments.
+        "2002:808:808::1",
+        "2620:4f:8000::1",
+        // Either side of the IPv4 IETF protocol assignments, 192.0.0.0/24.
+        "191.255.255.255",
+        "192.0.1.0",
+        // Either side of each local IPv4 prefix.
+        "9.255.255.255",
+        "11.0.0.0",
+        "172.15.255.255",
+        "172.32.0.0",
+        "192.167.255.255",
+        "192.169.0.0",
+        "100.63.255.255",
+        "100.128.0.0",
+        "169.253.255.255",
+        "169.255.0.0",
+        "126.255.255.255",
+        "128.0.0.0",
+    ];
+
+    /// Addresses of a network of its own: each local prefix's first and last.
+    const LOCAL: &[&str] = &[
+        "10.0.0.0",
+        "10.255.255.255",
+        "172.16.0.0",
+        "172.31.255.255",
+        "192.168.0.0",
+        "192.168.255.255",
+        "100.64.0.0",
+        "100.127.255.255",
+        "169.254.0.0",
+        "169.254.255.255",
+        "127.0.0.0",
+        "127.255.255.255",
+        "::1",
+        "fe80::",
+        "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "fc00::",
+        "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "::ffff:10.1.2.3",
+        "::ffff:192.168.1.1",
+        "::ffff:100.64.0.1",
+        "::ffff:169.254.1.1",
+        "::ffff:127.0.0.1",
+    ];
+
+    /// Addresses that are neither: no network a reader should be pointed at.
+    const NEITHER: &[&str] = &[
+        "0.1.2.3",
+        "255.255.255.255",
+        "224.0.0.1",
+        "::",
+        "ff02::1",
+        // Documentation, benchmarking, IETF assignments, 6to4 relay anycast,
+        // reserved.
+        "192.0.2.1",
+        "198.51.100.4",
+        "203.0.113.7",
+        "198.18.0.1",
+        "198.19.255.1",
+        "192.0.0.0",
+        "192.0.0.8",
+        "192.0.0.11",
+        "192.0.0.170",
+        "192.0.0.255",
+        "192.88.99.1",
+        "240.0.0.1",
+        // The documentation prefixes' ends.
+        "2001:db8::",
+        "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff",
+        "3fff::",
+        "3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff",
+        // The IETF protocol assignments' ends, Teredo, benchmarking and the
+        // deprecated ORCHID, and the neighbours of each globally reachable
+        // assignment.
+        "2001::",
+        "2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+        "2001:2::1",
+        "2001:10::1",
+        "2001:1::",
+        "2001:1::4",
+        "2001:1:0:0:0:0:1:1",
+        "2001:2:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:4::",
+        "2001:4:111:ffff:ffff:ffff:ffff:ffff",
+        "2001:4:113::",
+        "2001:1f:ffff:ffff:ffff:ffff:ffff:ffff",
+        "2001:40::",
+        // NAT64's local-use prefix, first and last, and the neighbours of
+        // both NAT64 prefixes.
+        "64:ff9b:1::",
+        "64:ff9b:1:ffff:ffff:ffff:ffff:ffff",
+        "64:ff9a:ffff:ffff:ffff:ffff:ffff:ffff",
+        "64:ff9b::1:0:0",
+        "64:ff9b:0:ffff:ffff:ffff:ffff:ffff",
+        "64:ff9b:2::",
+        // Global unicast's neighbours.
+        "1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "4000::",
+        // The neighbours of each local IPv6 prefix, site-local (deprecated),
+        // discard-only and mapped documentation.
+        "::2",
+        "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "fec0::",
+        "fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "fe00::",
+        "100::1",
+        "::ffff:198.51.100.4",
+    ];
+
     #[test]
     fn global_addresses_are_told_from_local_ones() {
-        for ip in [
-            "8.8.8.8",
-            "1.1.1.1",
-            "2a00:1450:4001::1",
-            "2606:4700::1111",
-            "::ffff:8.8.8.8",
-            // Either side of the IPv6 documentation prefix 3fff::/20.
-            "3ffe:ffff::1",
-            "3fff:1000::1",
-            "3ff1::1",
-        ] {
+        for ip in GLOBAL {
             assert!(is_global_ip(ip.parse().unwrap()), "{ip}");
         }
-        for ip in [
-            "10.1.2.3",
-            "172.16.0.1",
-            "192.168.1.1",
-            "127.0.0.1",
-            "169.254.1.1",
-            "100.64.0.1",
-            "0.1.2.3",
-            "255.255.255.255",
-            "224.0.0.1",
-            "::1",
-            "::",
-            "fe80::1",
-            "fd00::1",
-            "ff02::1",
-            "::ffff:192.168.1.1",
-            // Documentation, benchmarking, IETF assignments, reserved.
-            "192.0.2.1",
-            "198.51.100.4",
-            "203.0.113.7",
-            "198.18.0.1",
-            "198.19.255.1",
-            "192.0.0.8",
-            "192.88.99.1",
-            "240.0.0.1",
-            "2001:db8::1",
-            "2001::1",
-            "3fff::1",
-            "3fff:0fff::1",
-            "fec0::1",
-            "64:ff9b:1::1",
-            "100::1",
-        ] {
+        for ip in LOCAL.iter().chain(NEITHER) {
             assert!(!is_global_ip(ip.parse().unwrap()), "{ip}");
         }
         assert_eq!(
             canonical_ip("::ffff:198.51.100.4".parse().unwrap()),
             "198.51.100.4".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn local_addresses_are_only_those_of_a_network_of_its_own() {
+        for ip in LOCAL {
+            assert!(is_local_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in GLOBAL.iter().chain(NEITHER) {
+            assert!(!is_local_ip(ip.parse().unwrap()), "{ip}");
+        }
+    }
+
+    #[test]
+    fn a_swarm_sdp_keeps_no_nat64_candidate_whatever_keep_says() {
+        // Both prefixes' first and last addresses, and their neighbours.
+        let sdp = "v=0\r\n\
+a=candidate:1 1 udp 1 64:ff9b:: 5000 typ host\r\n\
+a=candidate:2 1 udp 1 64:ff9b::808:808 5001 typ host\r\n\
+a=candidate:3 1 udp 1 64:ff9b::ffff:ffff 5002 typ host\r\n\
+a=candidate:4 1 udp 1 64:ff9b:1:: 5003 typ host\r\n\
+a=candidate:5 1 udp 1 64:ff9b:1::c0a8:101 5004 typ srflx raddr 0.0.0.0 rport 0\r\n\
+a=candidate:6 1 udp 1 64:ff9b:1:ffff:ffff:ffff:ffff:ffff 5005 typ host\r\n\
+a=candidate:7 1 udp 1 64:ff9a:ffff:ffff:ffff:ffff:ffff:ffff 5006 typ host\r\n\
+a=candidate:8 1 udp 1 64:ff9b::1:0:0 5007 typ host\r\n\
+a=candidate:9 1 udp 1 64:ff9b:0:ffff:ffff:ffff:ffff:ffff 5008 typ host\r\n\
+a=candidate:10 1 udp 1 64:ff9b:2:: 5009 typ host\r\n\
+a=candidate:11 1 udp 1 8.8.8.8 5010 typ host\r\n";
+        assert_eq!(
+            candidates(&constrain_swarm_sdp(sdp, |_| true)),
+            ["7", "8", "9", "10", "11"]
         );
     }
 
